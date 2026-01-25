@@ -20,6 +20,9 @@ class Addon {
       rows: Array<{ [dataKey: string]: string }>;
     };
     dialog?: DialogHelper;
+    quickOpen?: {
+      windowManager: import("./modules/quickOpen/windowManager").WindowManager;
+    };
   };
   // Lifecycle hooks
   public hooks: typeof hooks;
