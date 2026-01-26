@@ -76,3 +76,4 @@ Zotero Spotlight aims to become a **universal command surface inside Zotero** â€
 - macOS / Windows (not fully tested)
 
 Feedback welcome.
+

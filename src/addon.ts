@@ -20,8 +20,8 @@ class Addon {
       rows: Array<{ [dataKey: string]: string }>;
     };
     dialog?: DialogHelper;
-    quickOpen?: {
-      windowManager: import("./modules/quickOpen/windowManager").WindowManager;
+    spotlight?: {
+      windowManager: import("./modules/spotlight/windowManager").WindowManager;
     };
   };
   // Lifecycle hooks
