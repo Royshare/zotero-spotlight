@@ -1,7 +1,7 @@
 {
   "name": "zotero-spotlight",
   "type": "module",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Zotero Spotlight",
   "config": {
     "addonName": "Zotero Spotlight",
@@ -14,7 +14,7 @@
     "type": "git",
     "url": "git+https://github.com/Royshare/zotero-spotlight.git"
   },
-  "author": "windingwind",
+  "author": "Royshare",
   "bugs": {
     "url": "https://github.com/Royshare/zotero-spotlight/issues"
   },
