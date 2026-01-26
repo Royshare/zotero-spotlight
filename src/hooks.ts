@@ -1,4 +1,5 @@
 import { WindowManager } from "./modules/spotlight/windowManager";
+import { registerPrefsScripts } from "./modules/preferenceScript";
 
 let windowManager: WindowManager | null = null;
 
@@ -8,6 +9,14 @@ async function onStartup() {
     Zotero.unlockPromise,
     Zotero.uiReadyPromise,
   ]);
+
+  const addonRef = addon.data.config.addonRef;
+  Zotero.PreferencePanes.register({
+    pluginID: addon.data.config.addonID,
+    src: `chrome://${addonRef}/content/preferences.xhtml`,
+    label: addon.data.config.addonName,
+    image: `chrome://${addonRef}/content/icons/favicon.png`,
+  });
 
   windowManager = new WindowManager();
   windowManager.start();
@@ -55,7 +64,13 @@ async function onNotify(
  * @param data event data
  */
 async function onPrefsEvent(type: string, data: { [key: string]: any }) {
-  return;
+  switch (type) {
+    case "load":
+      registerPrefsScripts(data.window);
+      break;
+    default:
+      return;
+  }
 }
 
 function onShortcuts(type: string) {

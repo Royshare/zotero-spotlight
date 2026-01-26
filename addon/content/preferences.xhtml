@@ -1,33 +1,95 @@
 <linkset>
   <html:link rel="localization" href="__addonRef__-preferences.ftl" />
+  <html:style>
+    .zotero-spotlight-section {
+      gap: 16px;
+    }
+    .zotero-spotlight-radio-group {
+      gap: 8px;
+    }
+    .zotero-spotlight-radio-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--in-content-text-color);
+      font: menu;
+    }
+    .zotero-spotlight-radio-input {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border: 1px solid var(--in-content-border-color, #5b5b5b);
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--in-content-box-background, transparent);
+      transition: border-color 100ms ease-in-out,
+        background-color 100ms ease-in-out;
+    }
+    .zotero-spotlight-radio-input::after {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: transparent;
+      transition: background-color 100ms ease-in-out;
+    }
+    .zotero-spotlight-radio-input:focus-visible {
+      outline: 2px solid var(--in-content-focus-outline-color, #00adff);
+      outline-offset: 2px;
+    }
+    .zotero-spotlight-radio-input:checked {
+      border-color: var(--in-content-primary-button-background, #0078d4);
+    }
+    .zotero-spotlight-radio-input:checked::after {
+      background-color: var(--in-content-primary-button-background, #0078d4);
+    }
+  </html:style>
 </linkset>
 <groupbox
+  class="zotero-spotlight-section"
   onload="Zotero.__addonInstance__.hooks.onPrefsEvent('load', { window })"
 >
-  <label><html:h2 data-l10n-id="pref-title"></html:h2></label>
-  <checkbox
-    id="zotero-prefpane-__addonRef__-enable"
-    preference="enable"
-    data-l10n-id="pref-enable"
-  />
-  <hbox>
-    <html:label
-      for="zotero-prefpane-__addonRef__-input"
-      data-l10n-id="pref-input"
-    ></html:label>
-    <html:input
-      type="text"
-      id="zotero-prefpane-__addonRef__-input"
-      preference="input"
-    ></html:input>
-  </hbox>
-  <hbox class="virtualized-table-container" flex="1" height="300px">
-    <html:div id="__addonRef__-table-container" />
-  </hbox>
+  <vbox>
+    <label data-l10n-id="pref-shortcut-section"></label>
+    <vbox
+      id="zotero-prefpane-__addonRef__-shortcut"
+      class="zotero-spotlight-radio-group"
+    >
+      <html:label class="zotero-spotlight-radio-option">
+        <html:input
+          class="zotero-spotlight-radio-input"
+          type="radio"
+          name="zotero-prefpane-__addonRef__-shortcut-choice"
+          value="primary"
+        />
+        <html:span data-l10n-id="pref-shortcut-primary"></html:span>
+      </html:label>
+      <html:label class="zotero-spotlight-radio-option">
+        <html:input
+          class="zotero-spotlight-radio-input"
+          type="radio"
+          name="zotero-prefpane-__addonRef__-shortcut-choice"
+          value="fallback"
+        />
+        <html:span data-l10n-id="pref-shortcut-fallback"></html:span>
+      </html:label>
+    </vbox>
+  </vbox>
+  <vbox>
+    <label data-l10n-id="pref-results-section"></label>
+    <hbox align="center" pack="start">
+      <html:label
+        for="zotero-prefpane-__addonRef__-results-limit"
+        data-l10n-id="pref-results-limit"
+      ></html:label>
+      <html:input
+        type="number"
+        id="zotero-prefpane-__addonRef__-results-limit"
+        min="5"
+        max="40"
+      ></html:input>
+    </hbox>
+  </vbox>
 </groupbox>
-<vbox>
-  <html:label
-    data-l10n-id="pref-help"
-    data-l10n-args='{"time": "__buildTime__","name": "__addonName__","version":"__buildVersion__"}'
-  ></html:label>
-</vbox>

@@ -2,6 +2,7 @@ import { ActionHandler } from "./actions";
 import { PaletteUI } from "./palette";
 import { SearchService } from "./search";
 import { isWindowAlive } from "../../utils/window";
+import { getPref } from "../../utils/prefs";
 
 type WindowListener = {
   onOpenWindow: (xulWindow: unknown) => void;
@@ -165,11 +166,15 @@ function isToggleEvent(event: KeyboardEvent): boolean {
     return false;
   }
   const isMatch = key === "p" || code === "KeyP";
-  if (isMatch && !event.shiftKey) {
-    return true;
+  if (!isMatch) {
+    return false;
   }
-  if (isMatch && event.shiftKey) {
-    return true;
+  const shortcutMode = (getPref("shortcutMode") || "primary") as string;
+  if (shortcutMode === "fallback") {
+    return event.shiftKey;
   }
-  return false;
+  if (shortcutMode === "primary") {
+    return !event.shiftKey;
+  }
+  return true;
 }
