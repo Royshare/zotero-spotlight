@@ -1,6 +1,7 @@
 import type { ActionHandler } from "./actions";
 import type { QuickOpenResult } from "./search";
 import type { SearchService } from "./search";
+import { getPref } from "../../utils/prefs";
 
 const HTML_NS = "http://www.w3.org/1999/xhtml";
 
@@ -119,6 +120,7 @@ export class PaletteUI {
   private async updateResults(query: string): Promise<void> {
     const token = (this.searchToken += 1);
     this.currentQuery = query.trim();
+    const resultsLimit = this.getResultsLimit();
     if (!this.currentQuery) {
       this.results = this.buildRecentResults();
       this.showRecentHeader = true;
@@ -126,7 +128,10 @@ export class PaletteUI {
       this.renderResults();
       return;
     }
-    const results = await this.searchService.search(this.currentQuery, 20);
+    const results = await this.searchService.search(
+      this.currentQuery,
+      resultsLimit,
+    );
     if (token !== this.searchToken) {
       return;
     }
@@ -401,10 +406,16 @@ export class PaletteUI {
     const openEntries = this.getOpenTabEntries().filter(
       (entry) => entry.itemID !== activeID,
     );
-    const recentOpen = openEntries.slice(-3).reverse();
+    const resultsLimit = this.getResultsLimit();
+    const recentOpenLimit = Math.min(3, resultsLimit);
+    const recentClosedLimit = Math.max(
+      0,
+      Math.min(2, resultsLimit - recentOpenLimit),
+    );
+    const recentOpen = openEntries.slice(-recentOpenLimit).reverse();
     const recentClosed = this.recentClosedAttachmentIDs
       .filter((id) => id !== activeID)
-      .slice(0, 2)
+      .slice(0, recentClosedLimit)
       .map((id) => ({ kind: "attachment" as const, itemID: id }));
     const entries = [...recentOpen, ...recentClosed];
     const results: QuickOpenResult[] = [];
@@ -591,5 +602,13 @@ export class PaletteUI {
       return "chrome://zotero/skin/16/universal/file.svg";
     }
     return "chrome://zotero/skin/16/universal/note.svg";
+  }
+
+  private getResultsLimit(): number {
+    const raw = Number(getPref("resultsLimit"));
+    if (Number.isNaN(raw)) {
+      return 20;
+    }
+    return Math.min(40, Math.max(5, raw));
   }
 }

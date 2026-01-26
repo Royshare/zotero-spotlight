@@ -1,131 +1,115 @@
 import { config } from "../../package.json";
-import { getString } from "../utils/locale";
+import { getPref, setPref } from "../utils/prefs";
 
 export async function registerPrefsScripts(_window: Window) {
-  // This function is called when the prefs window is opened
-  // See addon/content/preferences.xhtml onpaneload
   if (!addon.data.prefs) {
     addon.data.prefs = {
       window: _window,
-      columns: [
-        {
-          dataKey: "title",
-          label: getString("prefs-table-title"),
-          fixedWidth: true,
-          width: 100,
-        },
-        {
-          dataKey: "detail",
-          label: getString("prefs-table-detail"),
-        },
-      ],
-      rows: [
-        {
-          title: "Orange",
-          detail: "It's juicy",
-        },
-        {
-          title: "Banana",
-          detail: "It's sweet",
-        },
-        {
-          title: "Apple",
-          detail: "I mean the fruit APPLE",
-        },
-      ],
+      columns: [],
+      rows: [],
     };
   } else {
     addon.data.prefs.window = _window;
   }
-  updatePrefsUI();
   bindPrefEvents();
+  syncPrefUI();
 }
 
-async function updatePrefsUI() {
-  // You can initialize some UI elements on prefs window
-  // with addon.data.prefs.window.document
-  // Or bind some events to the elements
-  const renderLock = ztoolkit.getGlobal("Zotero").Promise.defer();
-  if (addon.data.prefs?.window == undefined) return;
-  const tableHelper = new ztoolkit.VirtualizedTable(addon.data.prefs?.window)
-    .setContainerId(`${config.addonRef}-table-container`)
-    .setProp({
-      id: `${config.addonRef}-prefs-table`,
-      // Do not use setLocale, as it modifies the Zotero.Intl.strings
-      // Set locales directly to columns
-      columns: addon.data.prefs?.columns,
-      showHeader: true,
-      multiSelect: true,
-      staticColumns: true,
-      disableFontSizeScaling: true,
-    })
-    .setProp("getRowCount", () => addon.data.prefs?.rows.length || 0)
-    .setProp(
-      "getRowData",
-      (index) =>
-        addon.data.prefs?.rows[index] || {
-          title: "no data",
-          detail: "no data",
-        },
-    )
-    // Show a progress window when selection changes
-    .setProp("onSelectionChange", (selection) => {
-      new ztoolkit.ProgressWindow(config.addonName)
-        .createLine({
-          text: `Selected line: ${addon.data.prefs?.rows
-            .filter((v, i) => selection.isSelected(i))
-            .map((row) => row.title)
-            .join(",")}`,
-          progress: 100,
-        })
-        .show();
-    })
-    // When pressing delete, delete selected line and refresh table.
-    // Returning false to prevent default event.
-    .setProp("onKeyDown", (event: KeyboardEvent) => {
-      if (event.key == "Delete" || (Zotero.isMac && event.key == "Backspace")) {
-        addon.data.prefs!.rows =
-          addon.data.prefs?.rows.filter(
-            (v, i) => !tableHelper.treeInstance.selection.isSelected(i),
-          ) || [];
-        tableHelper.render();
-        return false;
-      }
-      return true;
-    })
-    // For find-as-you-type
-    .setProp(
-      "getRowString",
-      (index) => addon.data.prefs?.rows[index].title || "",
-    )
-    // Render the table.
-    .render(-1, () => {
-      renderLock.resolve();
-    });
-  await renderLock.promise;
-  ztoolkit.log("Preference table rendered!");
+function syncPrefUI() {
+  if (!addon.data.prefs?.window) {
+    return;
+  }
+  const doc = addon.data.prefs.window.document;
+  const shortcut = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-shortcut`,
+  );
+  if (shortcut) {
+    const value = normalizeShortcutMode(getPref("shortcutMode"));
+    setShortcutElementValue(shortcut, value);
+  }
+  const limitInput = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-results-limit`,
+  ) as HTMLInputElement | null;
+  if (limitInput) {
+    const limit = clampResultsLimit(Number(getPref("resultsLimit")));
+    limitInput.value = String(limit);
+  }
 }
 
 function bindPrefEvents() {
-  addon.data
-    .prefs!.window.document?.querySelector(
-      `#zotero-prefpane-${config.addonRef}-enable`,
-    )
-    ?.addEventListener("command", (e: Event) => {
-      ztoolkit.log(e);
-      addon.data.prefs!.window.alert(
-        `Successfully changed to ${(e.target as XUL.Checkbox).checked}!`,
-      );
-    });
+  if (!addon.data.prefs?.window) {
+    return;
+  }
+  const doc = addon.data.prefs.window.document;
+  const shortcut = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-shortcut`,
+  );
+  bindShortcutEvents(shortcut);
+  const limitInput = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-results-limit`,
+  ) as HTMLInputElement | null;
+  limitInput?.addEventListener("change", () => {
+    const value = clampResultsLimit(Number(limitInput.value));
+    limitInput.value = String(value);
+    setPref("resultsLimit", value);
+  });
+}
 
-  addon.data
-    .prefs!.window.document?.querySelector(
-      `#zotero-prefpane-${config.addonRef}-input`,
-    )
-    ?.addEventListener("change", (e: Event) => {
-      ztoolkit.log(e);
-      addon.data.prefs!.window.alert(
-        `Successfully changed to ${(e.target as HTMLInputElement).value}!`,
-      );
-    });
+function clampResultsLimit(value: number): number {
+  if (Number.isNaN(value)) {
+    return 20;
+  }
+  return Math.min(40, Math.max(5, value));
+}
+
+type ShortcutMode = "primary" | "fallback";
+
+function bindShortcutEvents(shortcut: Element | null) {
+  if (!shortcut) {
+    return;
+  }
+  const updateShortcutPref: EventListener = () => {
+    const value = getShortcutElementValue(shortcut);
+    setPref("shortcutMode", value);
+  };
+  if (isXulRadioGroup(shortcut)) {
+    shortcut.addEventListener("select", updateShortcutPref);
+    shortcut.addEventListener("command", updateShortcutPref);
+    return;
+  }
+  shortcut.querySelectorAll('input[type="radio"]').forEach((node: Element) => {
+    const input = node as HTMLInputElement;
+    input.addEventListener("change", updateShortcutPref);
+  });
+}
+
+function normalizeShortcutMode(value: unknown): ShortcutMode {
+  return value === "fallback" ? "fallback" : "primary";
+}
+
+function isXulRadioGroup(
+  element: Element | null,
+): element is XUL.RadioGroup & Element {
+  return element?.localName === "radiogroup";
+}
+
+function getShortcutElementValue(shortcut: Element): ShortcutMode {
+  if (isXulRadioGroup(shortcut)) {
+    return normalizeShortcutMode(shortcut.value);
+  }
+  const selected = shortcut.querySelector(
+    'input[type="radio"]:checked',
+  ) as HTMLInputElement | null;
+  return normalizeShortcutMode(selected?.value);
+}
+
+function setShortcutElementValue(shortcut: Element, value: ShortcutMode): void {
+  if (isXulRadioGroup(shortcut)) {
+    shortcut.value = value;
+    return;
+  }
+  shortcut.querySelectorAll('input[type="radio"]').forEach((node: Element) => {
+    const input = node as HTMLInputElement;
+    input.checked = input.value === value;
+  });
 }
