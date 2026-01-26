@@ -14,6 +14,15 @@ export class ActionHandler {
     if (!attachment) {
       return;
     }
+    const existing = getExistingReader(attachmentID);
+    if (existing) {
+      const mainWindow = Zotero.getMainWindow();
+      if (existing.tabID && mainWindow?.Zotero_Tabs?.select) {
+        mainWindow.Zotero_Tabs.select(existing.tabID);
+      }
+      existing.focus?.();
+      return;
+    }
     if (typeof (Zotero as any).Reader?.open === "function") {
       await (Zotero as any).Reader.open(attachmentID, {
         openInWindow: alternate,
@@ -85,4 +94,15 @@ function isPdfAttachment(item: Zotero.Item): boolean {
   const contentType =
     candidate.attachmentContentType || candidate.attachmentMIMEType;
   return item.isAttachment() && contentType === "application/pdf";
+}
+
+function getExistingReader(
+  attachmentID: number,
+): _ZoteroTypes.ReaderInstance | null {
+  const reader = (Zotero as any).Reader;
+  const readers = reader?._readers as _ZoteroTypes.ReaderInstance[] | undefined;
+  if (!readers || !Array.isArray(readers)) {
+    return null;
+  }
+  return readers.find((entry) => entry.itemID === attachmentID) || null;
 }

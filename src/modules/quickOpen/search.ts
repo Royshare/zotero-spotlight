@@ -98,13 +98,29 @@ export class SearchService {
 async function buildIndex(): Promise<IndexedEntry[]> {
   const libraries = Zotero.Libraries.getAll();
   const entries: IndexedEntry[] = [];
+  const parentsWithPdf = new Set<number>();
   for (const library of libraries) {
     const items = await Zotero.Items.getAll(library.libraryID, false, false);
+    for (const item of items) {
+      if (!item || !item.isAttachment()) {
+        continue;
+      }
+      if (!isPdfAttachment(item)) {
+        continue;
+      }
+      const parentID = (item as any).parentID ?? (item as any).parentItemID;
+      if (typeof parentID === "number") {
+        parentsWithPdf.add(parentID);
+      }
+    }
     for (const item of items) {
       if (!item) {
         continue;
       }
       if (item.isRegularItem()) {
+        if (parentsWithPdf.has(item.id)) {
+          continue;
+        }
         const title = getItemTitle(item);
         const subtitle = getItemSubtitle(item);
         entries.push({
