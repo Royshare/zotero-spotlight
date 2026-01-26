@@ -159,7 +159,9 @@ export class PaletteUI {
 
   private renderResults(): void {
     this.list.textContent = "";
-    const openAttachmentIDs = new Set(this.getOpenReaderItemIDs());
+    const openTabItemIDs = new Set(
+      this.getOpenTabEntries().map((entry) => entry.itemID),
+    );
     if (this.showRecentHeader) {
       const header = this.createElement("div", "spotlight-section");
       header.textContent = "Recent";
@@ -186,7 +188,7 @@ export class PaletteUI {
       content.appendChild(title);
       content.appendChild(subtitle);
       row.appendChild(content);
-      if (result.kind === "attachment" && openAttachmentIDs.has(result.id)) {
+      if (openTabItemIDs.has(result.id)) {
         const tag = this.createElement("span", "spotlight-tag");
         tag.textContent = "TAB";
         row.appendChild(tag);
@@ -378,16 +380,22 @@ export class PaletteUI {
 
   private buildRecentResults(): QuickOpenResult[] {
     this.updateRecentClosed();
-    const activeID = this.getActiveReaderItemID();
-    const openIDs = this.getOpenReaderItemIDs().filter((id) => id !== activeID);
-    const recentOpen = openIDs.slice(-3).reverse();
+    const activeID = this.getActiveTabItemID();
+    const openEntries = this.getOpenTabEntries().filter(
+      (entry) => entry.itemID !== activeID,
+    );
+    const recentOpen = openEntries.slice(-3).reverse();
     const recentClosed = this.recentClosedAttachmentIDs
       .filter((id) => id !== activeID)
-      .slice(0, 2);
-    const ids = [...recentOpen, ...recentClosed];
+      .slice(0, 2)
+      .map((id) => ({ kind: "attachment" as const, itemID: id }));
+    const entries = [...recentOpen, ...recentClosed];
     const results: QuickOpenResult[] = [];
-    for (const attachmentID of ids) {
-      const result = this.createAttachmentResult(attachmentID);
+    for (const entry of entries) {
+      const result =
+        entry.kind === "note"
+          ? this.createNoteResult(entry.itemID)
+          : this.createAttachmentResult(entry.itemID);
       if (result) {
         results.push(result);
       }
@@ -396,13 +404,17 @@ export class PaletteUI {
   }
 
   private updateRecentClosed(): void {
-    const currentOpen = new Set(this.getOpenReaderItemIDs());
+    const currentOpenAttachments = new Set(
+      this.getOpenTabEntries()
+        .filter((entry) => entry.kind === "attachment")
+        .map((entry) => entry.itemID),
+    );
     for (const attachmentID of this.lastOpenReaderIDs) {
-      if (!currentOpen.has(attachmentID)) {
+      if (!currentOpenAttachments.has(attachmentID)) {
         this.pushRecentClosed(attachmentID);
       }
     }
-    this.lastOpenReaderIDs = currentOpen;
+    this.lastOpenReaderIDs = currentOpenAttachments;
   }
 
   private pushRecentClosed(attachmentID: number): void {
@@ -416,7 +428,32 @@ export class PaletteUI {
     );
   }
 
-  private getOpenReaderItemIDs(): number[] {
+  private getOpenTabEntries(): Array<{
+    kind: "attachment" | "note";
+    itemID: number;
+  }> {
+    const tabs = ((this.win as any).Zotero_Tabs ||
+      Zotero.getMainWindow()?.Zotero_Tabs) as
+      | _ZoteroTypes.Zotero_Tabs
+      | undefined;
+    if (tabs?._tabs && Array.isArray(tabs._tabs)) {
+      return tabs._tabs
+        .filter((tab) => tab.id !== "zotero-pane")
+        .map((tab) => {
+          const type = String(tab.type || "").split("-")[0];
+          if (type === "note") {
+            return { kind: "note" as const, itemID: tab.data?.itemID };
+          }
+          if (type === "reader") {
+            return { kind: "attachment" as const, itemID: tab.data?.itemID };
+          }
+          return null;
+        })
+        .filter(
+          (entry): entry is { kind: "attachment" | "note"; itemID: number } =>
+            !!entry && typeof entry.itemID === "number",
+        );
+    }
     const reader = (Zotero as any).Reader;
     const readers = reader?._readers as
       | _ZoteroTypes.ReaderInstance[]
@@ -425,11 +462,29 @@ export class PaletteUI {
       return [];
     }
     return readers
-      .map((entry) => entry.itemID)
-      .filter((id): id is number => typeof id === "number");
+      .map((entry) => ({ kind: "attachment" as const, itemID: entry.itemID }))
+      .filter((entry) => typeof entry.itemID === "number");
   }
 
-  private getActiveReaderItemID(): number | null {
+  private getActiveTabItemID(): number | null {
+    const localTabs = (this.win as any).Zotero_Tabs as
+      | _ZoteroTypes.Zotero_Tabs
+      | undefined;
+    const mainTabs = Zotero.getMainWindow()?.Zotero_Tabs as
+      | _ZoteroTypes.Zotero_Tabs
+      | undefined;
+    if (localTabs) {
+      const tabID =
+        localTabs.selectedID ||
+        localTabs.selectedTabID ||
+        localTabs.selectedTab?.id;
+      if (tabID && localTabs._tabs) {
+        const match = localTabs._tabs.find((tab) => tab.id === tabID);
+        if (match?.data?.itemID) {
+          return match.data.itemID as number;
+        }
+      }
+    }
     const reader = (Zotero as any).Reader;
     const readers = reader?._readers as
       | _ZoteroTypes.ReaderInstance[]
@@ -437,29 +492,23 @@ export class PaletteUI {
     if (!readers || !Array.isArray(readers)) {
       return null;
     }
-    const tabID = this.getActiveTabID();
-    if (tabID) {
-      const match = readers.find((entry) => entry.tabID === tabID);
-      if (match?.itemID) {
-        return match.itemID;
+    const matchByWindow = readers.find((entry) => entry._window === this.win);
+    if (matchByWindow?.itemID) {
+      return matchByWindow.itemID;
+    }
+    if (mainTabs) {
+      const tabID =
+        mainTabs.selectedID ||
+        mainTabs.selectedTabID ||
+        mainTabs.selectedTab?.id;
+      if (tabID && mainTabs._tabs) {
+        const match = mainTabs._tabs.find((tab) => tab.id === tabID);
+        if (match?.data?.itemID) {
+          return match.data.itemID as number;
+        }
       }
     }
-    const matchByWindow = readers.find((entry) => entry._window === this.win);
-    return matchByWindow?.itemID ?? null;
-  }
-
-  private getActiveTabID(): string | null {
-    const tabs = (this.win as any).Zotero_Tabs;
-    if (!tabs) {
-      return null;
-    }
-    return (
-      tabs.selectedID ||
-      tabs.selectedTabID ||
-      tabs.selectedTab?.id ||
-      tabs.selectedTab?.tabID ||
-      null
-    );
+    return null;
   }
 
   private createAttachmentResult(attachmentID: number): QuickOpenResult | null {
@@ -484,6 +533,29 @@ export class PaletteUI {
       id: attachmentID,
       kind: "attachment",
       title: title || "Attachment",
+      subtitle,
+      score: 0,
+    };
+  }
+
+  private createNoteResult(noteID: number): QuickOpenResult | null {
+    const note = Zotero.Items.get(noteID) as Zotero.Item;
+    if (!note || !note.isNote()) {
+      return null;
+    }
+    const title =
+      (note as any).getNoteTitle?.() || note.getDisplayTitle() || "Note";
+    const parentID = (note as any).parentID ?? (note as any).parentItemID;
+    const parent = parentID
+      ? (Zotero.Items.get(parentID) as Zotero.Item)
+      : null;
+    const subtitle = parent
+      ? parent.getField("title") || parent.getDisplayTitle()
+      : "Note";
+    return {
+      id: noteID,
+      kind: "item",
+      title,
       subtitle,
       score: 0,
     };
