@@ -238,8 +238,8 @@ export class PaletteUI {
   transform: translateX(-50%);
   width: 560px;
   max-width: 80vw;
-  background: #f6f5f2;
-  border: 1px solid #c9c5bf;
+  background: var(--quick-open-bg);
+  border: 1px solid var(--quick-open-border);
   border-radius: 10px;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
   padding: 12px;
@@ -250,18 +250,18 @@ export class PaletteUI {
 #zotero-quick-open-input {
   width: calc(100% - 6px);
   box-sizing: border-box;
-  border: 1px solid #c9c5bf;
+  border: 1px solid var(--quick-open-border);
   border-radius: 6px;
   padding: 8px 10px;
   font-size: 14px;
-  background: #ffffff;
-  color: #1f1d1a;
+  background: var(--quick-open-input-bg);
+  color: var(--quick-open-text);
   outline: none;
 }
 
 #zotero-quick-open-input:focus {
-  border-color: #8f8a81;
-  box-shadow: 0 0 0 2px rgba(143, 138, 129, 0.25);
+  border-color: var(--quick-open-border-focus);
+  box-shadow: 0 0 0 2px var(--quick-open-focus-ring);
 }
 
 #zotero-quick-open-list {
@@ -280,13 +280,13 @@ export class PaletteUI {
 }
 
 .quick-open-result.is-selected {
-  background: #e7e2da;
+  background: var(--quick-open-hover);
 }
 
 .quick-open-title {
   font-size: 13px;
   font-weight: 600;
-  color: #1f1d1a;
+  color: var(--quick-open-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -294,7 +294,7 @@ export class PaletteUI {
 
 .quick-open-subtitle {
   font-size: 12px;
-  color: #5b564f;
+  color: var(--quick-open-subtext);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -312,8 +312,8 @@ export class PaletteUI {
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #6f6a62;
-  background: #ece8e2;
+  color: var(--quick-open-tag-text);
+  background: var(--quick-open-tag-bg);
   border-radius: 999px;
   padding: 3px 6px;
   flex: 0 0 auto;
@@ -321,7 +321,7 @@ export class PaletteUI {
 
 .quick-open-empty {
   padding: 10px;
-  color: #5b564f;
+  color: var(--quick-open-subtext);
   font-size: 12px;
 }
 
@@ -330,7 +330,37 @@ export class PaletteUI {
   font-size: 11px;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: #8b877f;
+  color: var(--quick-open-muted);
+}
+
+#zotero-quick-open-root {
+  --quick-open-bg: #f6f5f2;
+  --quick-open-border: #c9c5bf;
+  --quick-open-border-focus: #8f8a81;
+  --quick-open-focus-ring: rgba(143, 138, 129, 0.25);
+  --quick-open-input-bg: #ffffff;
+  --quick-open-text: #1f1d1a;
+  --quick-open-subtext: #5b564f;
+  --quick-open-muted: #8b877f;
+  --quick-open-hover: #e7e2da;
+  --quick-open-tag-text: #6f6a62;
+  --quick-open-tag-bg: #ece8e2;
+}
+
+@media (prefers-color-scheme: dark) {
+  #zotero-quick-open-root {
+    --quick-open-bg: #1f1f1d;
+    --quick-open-border: #3a3732;
+    --quick-open-border-focus: #7b756c;
+    --quick-open-focus-ring: rgba(123, 117, 108, 0.35);
+    --quick-open-input-bg: #2b2925;
+    --quick-open-text: #f0ede7;
+    --quick-open-subtext: #c2bcb2;
+    --quick-open-muted: #9a9489;
+    --quick-open-hover: #2f2c27;
+    --quick-open-tag-text: #d7d2c8;
+    --quick-open-tag-bg: #3a3530;
+  }
 }
 `;
     this.doc.documentElement?.appendChild(style);
