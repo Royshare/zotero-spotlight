@@ -42,6 +42,32 @@ export class ActionHandler {
       mainWindow.Zotero_Tabs.select("zotero-pane");
     }
     const pane = mainWindow?.ZoteroPane;
+    const item = Zotero.Items.get(itemID) as Zotero.Item;
+    if (item?.isNote && item.isNote()) {
+      const tabs = mainWindow?.Zotero_Tabs as
+        | _ZoteroTypes.Zotero_Tabs
+        | undefined;
+      const existingID = tabs?.getTabIDByItemID?.(itemID);
+      if (existingID) {
+        tabs?.select?.(existingID);
+        return;
+      }
+      try {
+        if (typeof (item as any).loadDataType === "function") {
+          await (item as any).loadDataType("note");
+        }
+        const notes = (Zotero as any).Notes;
+        if (notes?.open) {
+          await notes.open(itemID, null, { openInWindow: false });
+          return;
+        }
+      } catch (error) {
+        ztoolkit.log("Failed to open note tab", error);
+      }
+      pane?.selectItem?.(itemID);
+      pane?.openNoteWindow?.(itemID);
+      return;
+    }
     if (pane?.selectItem) {
       pane.selectItem(itemID);
     }
