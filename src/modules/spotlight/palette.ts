@@ -180,6 +180,11 @@ export class PaletteUI {
       if (index === this.selectedIndex) {
         row.classList.add("is-selected");
       }
+      const icon = this.createElement("span", "spotlight-icon");
+      const iconURL = this.getResultIconURL(result);
+      if (iconURL) {
+        icon.style.backgroundImage = `url(${iconURL})`;
+      }
       const content = this.createElement("div", "spotlight-content");
       const title = this.createElement("div", "spotlight-title");
       title.textContent = result.title;
@@ -187,6 +192,7 @@ export class PaletteUI {
       subtitle.textContent = result.subtitle;
       content.appendChild(title);
       content.appendChild(subtitle);
+      row.appendChild(icon);
       row.appendChild(content);
       if (openTabItemIDs.has(result.id)) {
         const tag = this.createElement("span", "spotlight-tag");
@@ -307,6 +313,17 @@ export class PaletteUI {
   flex-direction: column;
   min-width: 0;
   flex: 1 1 auto;
+}
+
+.spotlight-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  display: inline-block;
+  background-size: 16px 16px;
+  background-repeat: no-repeat;
+  background-position: center;
+  opacity: 0.9;
 }
 
 .spotlight-tag {
@@ -463,7 +480,10 @@ export class PaletteUI {
     }
     return readers
       .map((entry) => ({ kind: "attachment" as const, itemID: entry.itemID }))
-      .filter((entry) => typeof entry.itemID === "number");
+      .filter(
+        (entry): entry is { kind: "attachment"; itemID: number } =>
+          typeof entry.itemID === "number",
+      );
   }
 
   private getActiveTabItemID(): number | null {
@@ -474,10 +494,7 @@ export class PaletteUI {
       | _ZoteroTypes.Zotero_Tabs
       | undefined;
     if (localTabs) {
-      const tabID =
-        localTabs.selectedID ||
-        localTabs.selectedTabID ||
-        localTabs.selectedTab?.id;
+      const tabID = localTabs.selectedID;
       if (tabID && localTabs._tabs) {
         const match = localTabs._tabs.find((tab) => tab.id === tabID);
         if (match?.data?.itemID) {
@@ -497,10 +514,7 @@ export class PaletteUI {
       return matchByWindow.itemID;
     }
     if (mainTabs) {
-      const tabID =
-        mainTabs.selectedID ||
-        mainTabs.selectedTabID ||
-        mainTabs.selectedTab?.id;
+      const tabID = mainTabs.selectedID;
       if (tabID && mainTabs._tabs) {
         const match = mainTabs._tabs.find((tab) => tab.id === tabID);
         if (match?.data?.itemID) {
@@ -559,5 +573,23 @@ export class PaletteUI {
       subtitle,
       score: 0,
     };
+  }
+
+  private getResultIconURL(result: QuickOpenResult): string | null {
+    const item = Zotero.Items.get(result.id) as Zotero.Item;
+    if (!item) {
+      return null;
+    }
+    const imageSrc =
+      typeof (item as any).getImageSrc === "function"
+        ? (item as any).getImageSrc()
+        : null;
+    if (imageSrc) {
+      return String(imageSrc);
+    }
+    if (result.kind === "attachment") {
+      return "chrome://zotero/skin/16/universal/file.svg";
+    }
+    return "chrome://zotero/skin/16/universal/note.svg";
   }
 }
