@@ -1,5 +1,5 @@
-pref-title = Addon Template Example
-pref-enable =
-    .label = Enable
-pref-input = Input
-pref-help = { $name } Build { $version } { $time }
+pref-shortcut-section = Shortcuts
+pref-shortcut-primary = Cmd+P (MacOS) or Ctrl+P (Windows/Linux)
+pref-shortcut-fallback = Cmd+Shift+P (MacOS) or Ctrl+Shift+P (Windows/Linux)
+pref-results-section = Results
+pref-results-limit = Results limit

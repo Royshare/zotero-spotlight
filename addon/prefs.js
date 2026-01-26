@@ -1,2 +1,2 @@
-pref("enable", true);
-pref("input", "This is input");
+pref("shortcutMode", "primary");
+pref("resultsLimit", 20);

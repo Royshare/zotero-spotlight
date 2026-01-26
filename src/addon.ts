@@ -20,6 +20,9 @@ class Addon {
       rows: Array<{ [dataKey: string]: string }>;
     };
     dialog?: DialogHelper;
+    spotlight?: {
+      windowManager: import("./modules/spotlight/windowManager").WindowManager;
+    };
   };
   // Lifecycle hooks
   public hooks: typeof hooks;
