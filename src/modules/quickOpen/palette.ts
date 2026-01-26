@@ -66,6 +66,7 @@ export class PaletteUI {
     this.results = [];
     this.selectedIndex = 0;
     this.renderResults();
+    void this.updateResults("");
     this.input.focus();
   }
 

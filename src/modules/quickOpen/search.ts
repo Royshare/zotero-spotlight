@@ -46,10 +46,19 @@ export class SearchService {
 
   async search(query: string, limit = 20): Promise<QuickOpenResult[]> {
     const trimmed = query.trim();
-    if (!trimmed) {
-      return [];
-    }
     await this.ensureIndex();
+    if (!trimmed) {
+      return this.index.slice(0, limit).map(
+        (entry, index) =>
+          ({
+            id: entry.id,
+            kind: entry.kind,
+            title: entry.title,
+            subtitle: entry.subtitle,
+            score: limit - index,
+          }) as QuickOpenResult,
+      );
+    }
     const results: QuickOpenResult[] = [];
     for (const entry of this.index) {
       const score = fuzzyScore(trimmed, entry.searchText);
