@@ -2,6 +2,8 @@
 
 [![zotero target version](https://img.shields.io/badge/Zotero-7%2F8-green?style=flat-square&logo=zotero&logoColor=CC2936)](https://www.zotero.org)
 [![Using Zotero Plugin Template](https://img.shields.io/badge/Using-Zotero%20Plugin%20Template-blue?style=flat-square&logo=github)](https://github.com/windingwind/zotero-plugin-template)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-orange?style=flat-square&logo=buy-me-a-coffee)](https://www.buymeacoffee.com/royshare)
+
 
 **Intent-first navigation for Zotero.**
 
@@ -23,6 +25,7 @@ Spotlight is different:
 
 > You think of a paper → you’re there.
 
+Zotero Spotlight started as a personal tool. I wanted a fast, keyboard-first way to jump between papers anywhere inside Zotero, but couldn’t find an existing plugin that offered this experience. I built it for my own workflow and decided to open-source it so others can use it, adapt it, or help improve it.
 ---
 
 ## What it does
@@ -72,8 +75,9 @@ Zotero Spotlight aims to become a **universal command surface inside Zotero** �
 ## Status
 
 - Version: v0.1 (experimental)
-- Zotero 8.x
-- macOS / Windows (not fully tested)
+- Developed for Zotero 8.x, should work with Zotero 7.x.
+- MacOS tested.
+- Windows / Linux expected to work but not fully tested.
 
 Feedback welcome.
 
