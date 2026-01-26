@@ -159,6 +159,7 @@ export class PaletteUI {
 
   private renderResults(): void {
     this.list.textContent = "";
+    const openAttachmentIDs = new Set(this.getOpenReaderItemIDs());
     if (this.showRecentHeader) {
       const header = this.createElement("div", "quick-open-section");
       header.textContent = "Recent";
@@ -177,12 +178,19 @@ export class PaletteUI {
       if (index === this.selectedIndex) {
         row.classList.add("is-selected");
       }
+      const content = this.createElement("div", "quick-open-content");
       const title = this.createElement("div", "quick-open-title");
       title.textContent = result.title;
       const subtitle = this.createElement("div", "quick-open-subtitle");
       subtitle.textContent = result.subtitle;
-      row.appendChild(title);
-      row.appendChild(subtitle);
+      content.appendChild(title);
+      content.appendChild(subtitle);
+      row.appendChild(content);
+      if (result.kind === "attachment" && openAttachmentIDs.has(result.id)) {
+        const tag = this.createElement("span", "quick-open-tag");
+        tag.textContent = "TAB";
+        row.appendChild(tag);
+      }
       row.addEventListener("mousemove", () => {
         this.selectedIndex = index;
         this.renderResults();
@@ -266,6 +274,9 @@ export class PaletteUI {
   padding: 8px 10px;
   border-radius: 6px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .quick-open-result.is-selected {
@@ -287,6 +298,25 @@ export class PaletteUI {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.quick-open-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.quick-open-tag {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6f6a62;
+  background: #ece8e2;
+  border-radius: 999px;
+  padding: 3px 6px;
+  flex: 0 0 auto;
 }
 
 .quick-open-empty {
