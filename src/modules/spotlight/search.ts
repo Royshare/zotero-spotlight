@@ -76,6 +76,10 @@ export class SearchService {
     return results.sort((a, b) => b.score - a.score).slice(0, limit);
   }
 
+  async warmIndex(): Promise<void> {
+    await this.ensureIndex();
+  }
+
   private async ensureIndex(): Promise<void> {
     const now = Date.now();
     if (

@@ -33,11 +33,11 @@ export class WindowManager {
     if (!isSupportedWindow(win)) {
       return;
     }
-    const palette = new PaletteUI(
-      win,
-      new SearchService(),
-      new ActionHandler(),
-    );
+    const searchService = new SearchService();
+    const palette = new PaletteUI(win, searchService, new ActionHandler());
+    searchService.warmIndex().catch((error) => {
+      ztoolkit.log("Spotlight index warmup failed", error);
+    });
     const handler = (event: KeyboardEvent) => {
       if (!isToggleEvent(event)) {
         return;
