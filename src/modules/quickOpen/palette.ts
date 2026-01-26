@@ -18,6 +18,10 @@ export class PaletteUI {
   private open = false;
   private searchToken = 0;
   private outsideClickHandler: (event: MouseEvent) => void;
+  private currentQuery = "";
+  private showRecentHeader = false;
+  private lastOpenReaderIDs = new Set<number>();
+  private recentClosedAttachmentIDs: number[] = [];
 
   constructor(
     win: Window,
@@ -114,11 +118,20 @@ export class PaletteUI {
 
   private async updateResults(query: string): Promise<void> {
     const token = (this.searchToken += 1);
-    const results = await this.searchService.search(query, 20);
+    this.currentQuery = query.trim();
+    if (!this.currentQuery) {
+      this.results = this.buildRecentResults();
+      this.showRecentHeader = true;
+      this.selectedIndex = 0;
+      this.renderResults();
+      return;
+    }
+    const results = await this.searchService.search(this.currentQuery, 20);
     if (token !== this.searchToken) {
       return;
     }
     this.results = results;
+    this.showRecentHeader = false;
     this.selectedIndex = 0;
     this.renderResults();
   }
@@ -146,9 +159,16 @@ export class PaletteUI {
 
   private renderResults(): void {
     this.list.textContent = "";
+    if (this.showRecentHeader) {
+      const header = this.createElement("div", "quick-open-section");
+      header.textContent = "Recent";
+      this.list.appendChild(header);
+    }
     if (!this.results.length) {
       const empty = this.createElement("div", "quick-open-empty");
-      empty.textContent = "No results";
+      empty.textContent = this.showRecentHeader
+        ? "No recent items"
+        : "No results";
       this.list.appendChild(empty);
       return;
     }
@@ -274,6 +294,14 @@ export class PaletteUI {
   color: #5b564f;
   font-size: 12px;
 }
+
+.quick-open-section {
+  padding: 2px 6px 6px 6px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #8b877f;
+}
 `;
     this.doc.documentElement?.appendChild(style);
     return style;
@@ -286,5 +314,118 @@ export class PaletteUI {
     const element = this.doc.createElementNS(HTML_NS, tag) as T;
     element.className = className;
     return element;
+  }
+
+  private buildRecentResults(): QuickOpenResult[] {
+    this.updateRecentClosed();
+    const activeID = this.getActiveReaderItemID();
+    const openIDs = this.getOpenReaderItemIDs().filter((id) => id !== activeID);
+    const recentOpen = openIDs.slice(-3).reverse();
+    const recentClosed = this.recentClosedAttachmentIDs
+      .filter((id) => id !== activeID)
+      .slice(0, 2);
+    const ids = [...recentOpen, ...recentClosed];
+    const results: QuickOpenResult[] = [];
+    for (const attachmentID of ids) {
+      const result = this.createAttachmentResult(attachmentID);
+      if (result) {
+        results.push(result);
+      }
+    }
+    return results;
+  }
+
+  private updateRecentClosed(): void {
+    const currentOpen = new Set(this.getOpenReaderItemIDs());
+    for (const attachmentID of this.lastOpenReaderIDs) {
+      if (!currentOpen.has(attachmentID)) {
+        this.pushRecentClosed(attachmentID);
+      }
+    }
+    this.lastOpenReaderIDs = currentOpen;
+  }
+
+  private pushRecentClosed(attachmentID: number): void {
+    this.recentClosedAttachmentIDs = this.recentClosedAttachmentIDs.filter(
+      (id) => id !== attachmentID,
+    );
+    this.recentClosedAttachmentIDs.unshift(attachmentID);
+    this.recentClosedAttachmentIDs = this.recentClosedAttachmentIDs.slice(
+      0,
+      10,
+    );
+  }
+
+  private getOpenReaderItemIDs(): number[] {
+    const reader = (Zotero as any).Reader;
+    const readers = reader?._readers as
+      | _ZoteroTypes.ReaderInstance[]
+      | undefined;
+    if (!readers || !Array.isArray(readers)) {
+      return [];
+    }
+    return readers
+      .map((entry) => entry.itemID)
+      .filter((id): id is number => typeof id === "number");
+  }
+
+  private getActiveReaderItemID(): number | null {
+    const reader = (Zotero as any).Reader;
+    const readers = reader?._readers as
+      | _ZoteroTypes.ReaderInstance[]
+      | undefined;
+    if (!readers || !Array.isArray(readers)) {
+      return null;
+    }
+    const tabID = this.getActiveTabID();
+    if (tabID) {
+      const match = readers.find((entry) => entry.tabID === tabID);
+      if (match?.itemID) {
+        return match.itemID;
+      }
+    }
+    const matchByWindow = readers.find((entry) => entry._window === this.win);
+    return matchByWindow?.itemID ?? null;
+  }
+
+  private getActiveTabID(): string | null {
+    const tabs = (this.win as any).Zotero_Tabs;
+    if (!tabs) {
+      return null;
+    }
+    return (
+      tabs.selectedID ||
+      tabs.selectedTabID ||
+      tabs.selectedTab?.id ||
+      tabs.selectedTab?.tabID ||
+      null
+    );
+  }
+
+  private createAttachmentResult(attachmentID: number): QuickOpenResult | null {
+    const attachment = Zotero.Items.get(attachmentID) as Zotero.Item;
+    if (!attachment || !attachment.isAttachment()) {
+      return null;
+    }
+    const filename = (attachment as any).attachmentFilename as
+      | string
+      | undefined;
+    const title =
+      filename || attachment.getField("title") || attachment.getDisplayTitle();
+    const parentID =
+      (attachment as any).parentID ?? (attachment as any).parentItemID;
+    const parent = parentID
+      ? (Zotero.Items.get(parentID) as Zotero.Item)
+      : null;
+    const subtitle = parent
+      ? parent.getField("title") || parent.getDisplayTitle()
+      : "";
+    return {
+      id: attachmentID,
+      kind: "attachment",
+      title: title || "Attachment",
+      subtitle,
+      score: 0,
+    };
   }
 }
