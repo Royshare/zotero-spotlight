@@ -45,10 +45,10 @@ export class PaletteUI {
     this.styleElement = this.createStyleElement();
     this.root = this.createRoot();
     this.input = this.root.querySelector(
-      "#zotero-quick-open-input",
+      "#zotero-spotlight-input",
     ) as HTMLInputElement;
     this.list = this.root.querySelector(
-      "#zotero-quick-open-list",
+      "#zotero-spotlight-list",
     ) as HTMLDivElement;
     this.bindEvents();
     this.doc.addEventListener("mousedown", this.outsideClickHandler, true);
@@ -161,12 +161,12 @@ export class PaletteUI {
     this.list.textContent = "";
     const openAttachmentIDs = new Set(this.getOpenReaderItemIDs());
     if (this.showRecentHeader) {
-      const header = this.createElement("div", "quick-open-section");
+      const header = this.createElement("div", "spotlight-section");
       header.textContent = "Recent";
       this.list.appendChild(header);
     }
     if (!this.results.length) {
-      const empty = this.createElement("div", "quick-open-empty");
+      const empty = this.createElement("div", "spotlight-empty");
       empty.textContent = this.showRecentHeader
         ? "No recent items"
         : "No results";
@@ -174,20 +174,20 @@ export class PaletteUI {
       return;
     }
     this.results.forEach((result, index) => {
-      const row = this.createElement("div", "quick-open-result");
+      const row = this.createElement("div", "spotlight-result");
       if (index === this.selectedIndex) {
         row.classList.add("is-selected");
       }
-      const content = this.createElement("div", "quick-open-content");
-      const title = this.createElement("div", "quick-open-title");
+      const content = this.createElement("div", "spotlight-content");
+      const title = this.createElement("div", "spotlight-title");
       title.textContent = result.title;
-      const subtitle = this.createElement("div", "quick-open-subtitle");
+      const subtitle = this.createElement("div", "spotlight-subtitle");
       subtitle.textContent = result.subtitle;
       content.appendChild(title);
       content.appendChild(subtitle);
       row.appendChild(content);
       if (result.kind === "attachment" && openAttachmentIDs.has(result.id)) {
-        const tag = this.createElement("span", "quick-open-tag");
+        const tag = this.createElement("span", "spotlight-tag");
         tag.textContent = "TAB";
         row.appendChild(tag);
       }
@@ -207,17 +207,17 @@ export class PaletteUI {
   }
 
   private createRoot(): HTMLDivElement {
-    const root = this.createElement("div", "quick-open-root") as HTMLDivElement;
-    root.id = "zotero-quick-open-root";
+    const root = this.createElement("div", "spotlight-root") as HTMLDivElement;
+    root.id = "zotero-spotlight-root";
     const input = this.createElement(
       "input",
-      "quick-open-input",
+      "spotlight-input",
     ) as HTMLInputElement;
-    input.id = "zotero-quick-open-input";
+    input.id = "zotero-spotlight-input";
     input.type = "text";
-    input.placeholder = "Quick Open...";
-    const list = this.createElement("div", "quick-open-list") as HTMLDivElement;
-    list.id = "zotero-quick-open-list";
+    input.placeholder = "Spotlight...";
+    const list = this.createElement("div", "spotlight-list") as HTMLDivElement;
+    list.id = "zotero-spotlight-list";
     root.appendChild(input);
     root.appendChild(list);
     this.doc.documentElement?.appendChild(root);
@@ -229,9 +229,9 @@ export class PaletteUI {
       HTML_NS,
       "style",
     ) as HTMLStyleElement;
-    style.id = "zotero-quick-open-style";
+    style.id = "zotero-spotlight-style";
     style.textContent = `
-#zotero-quick-open-root {
+#zotero-spotlight-root {
   position: fixed;
   top: 18%;
   left: 50%;
@@ -247,7 +247,7 @@ export class PaletteUI {
   font: inherit;
 }
 
-#zotero-quick-open-input {
+#zotero-spotlight-input {
   width: calc(100% - 6px);
   box-sizing: border-box;
   border: 1px solid var(--quick-open-border);
@@ -259,18 +259,18 @@ export class PaletteUI {
   outline: none;
 }
 
-#zotero-quick-open-input:focus {
+#zotero-spotlight-input:focus {
   border-color: var(--quick-open-border-focus);
   box-shadow: 0 0 0 2px var(--quick-open-focus-ring);
 }
 
-#zotero-quick-open-list {
+#zotero-spotlight-list {
   margin-top: 10px;
   max-height: 280px;
   overflow-y: auto;
 }
 
-.quick-open-result {
+.spotlight-result {
   padding: 8px 10px;
   border-radius: 6px;
   cursor: pointer;
@@ -279,11 +279,11 @@ export class PaletteUI {
   gap: 12px;
 }
 
-.quick-open-result.is-selected {
+.spotlight-result.is-selected {
   background: var(--quick-open-hover);
 }
 
-.quick-open-title {
+.spotlight-title {
   font-size: 13px;
   font-weight: 600;
   color: var(--quick-open-text);
@@ -292,7 +292,7 @@ export class PaletteUI {
   text-overflow: ellipsis;
 }
 
-.quick-open-subtitle {
+.spotlight-subtitle {
   font-size: 12px;
   color: var(--quick-open-subtext);
   white-space: nowrap;
@@ -300,14 +300,14 @@ export class PaletteUI {
   text-overflow: ellipsis;
 }
 
-.quick-open-content {
+.spotlight-content {
   display: flex;
   flex-direction: column;
   min-width: 0;
   flex: 1 1 auto;
 }
 
-.quick-open-tag {
+.spotlight-tag {
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -319,13 +319,13 @@ export class PaletteUI {
   flex: 0 0 auto;
 }
 
-.quick-open-empty {
+.spotlight-empty {
   padding: 10px;
   color: var(--quick-open-subtext);
   font-size: 12px;
 }
 
-.quick-open-section {
+.spotlight-section {
   padding: 2px 6px 6px 6px;
   font-size: 11px;
   letter-spacing: 0.02em;
@@ -333,7 +333,7 @@ export class PaletteUI {
   color: var(--quick-open-muted);
 }
 
-#zotero-quick-open-root {
+#zotero-spotlight-root {
   --quick-open-bg: #f6f5f2;
   --quick-open-border: #c9c5bf;
   --quick-open-border-focus: #8f8a81;
@@ -348,7 +348,7 @@ export class PaletteUI {
 }
 
 @media (prefers-color-scheme: dark) {
-  #zotero-quick-open-root {
+  #zotero-spotlight-root {
     --quick-open-bg: #1f1f1d;
     --quick-open-border: #3a3732;
     --quick-open-border-focus: #7b756c;

@@ -1,24 +1,24 @@
 {
-  "name": "zotero-quick-open",
+  "name": "zotero-spotlight",
   "type": "module",
   "version": "0.0.0",
-  "description": "Zotero Quick Open",
+  "description": "Zotero Spotlight",
   "config": {
-    "addonName": "Zotero Quick Open",
-    "addonID": "zotero-quick-open@outlook.com",
-    "addonRef": "zotero-quick-open",
-    "addonInstance": "ZoteroQuickOpen",
-    "prefsPrefix": "extensions.zotero.zotero-quick-open"
+    "addonName": "Zotero Spotlight",
+    "addonID": "zotero-spotlight@outlook.com",
+    "addonRef": "zotero-spotlight",
+    "addonInstance": "ZoteroSpotlight",
+    "prefsPrefix": "extensions.zotero.zotero-spotlight"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Royshare/zotero-quick-open.git"
+    "url": "git+https://github.com/Royshare/zotero-spotlight.git"
   },
   "author": "windingwind",
   "bugs": {
-    "url": "https://github.com/Royshare/zotero-quick-open/issues"
+    "url": "https://github.com/Royshare/zotero-spotlight/issues"
   },
-  "homepage": "https://github.com/Royshare/zotero-quick-open#readme",
+  "homepage": "https://github.com/Royshare/zotero-spotlight#readme",
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "start": "zotero-plugin serve",
