@@ -219,7 +219,8 @@ export class PaletteUI {
 }
 
 #zotero-quick-open-input {
-  width: 100%;
+  width: calc(100% - 6px);
+  box-sizing: border-box;
   border: 1px solid #c9c5bf;
   border-radius: 6px;
   padding: 8px 10px;
