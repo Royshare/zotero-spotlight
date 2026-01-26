@@ -139,6 +139,16 @@ async function buildIndex(): Promise<IndexedEntry[]> {
           subtitle,
           searchText: normalize(`${title} ${subtitle}`),
         });
+      } else if (item.isNote && item.isNote()) {
+        const title = getNoteTitle(item);
+        const subtitle = getNoteSubtitle(item);
+        entries.push({
+          id: item.id,
+          kind: "item",
+          title,
+          subtitle,
+          searchText: normalize(`${title} ${subtitle}`),
+        });
       } else if (item.isAttachment() && isPdfAttachment(item)) {
         const title = getAttachmentTitle(item);
         const subtitle = getAttachmentSubtitle(item);
@@ -183,6 +193,29 @@ function getAttachmentTitle(item: Zotero.Item): string {
 function getAttachmentSubtitle(item: Zotero.Item): string {
   const parent = getParentItem(item);
   return parent ? getItemTitle(parent) : "";
+}
+
+function getNoteTitle(item: Zotero.Item): string {
+  const note = (item as any).getNote?.() as string | undefined;
+  if (!note) {
+    return "Note";
+  }
+  const text = note
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) {
+    return "Note";
+  }
+  return text.length > 80 ? `${text.slice(0, 77)}...` : text;
+}
+
+function getNoteSubtitle(item: Zotero.Item): string {
+  const parent = getParentItem(item);
+  if (parent) {
+    return getItemTitle(parent);
+  }
+  return "Note";
 }
 
 function getParentItem(item: Zotero.Item): Zotero.Item | null {

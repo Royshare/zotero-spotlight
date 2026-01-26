@@ -1,4 +1,4 @@
-import { WindowManager } from "./modules/quickOpen/windowManager";
+import { WindowManager } from "./modules/spotlight/windowManager";
 
 let windowManager: WindowManager | null = null;
 
@@ -11,7 +11,7 @@ async function onStartup() {
 
   windowManager = new WindowManager();
   windowManager.start();
-  addon.data.quickOpen = { windowManager };
+  addon.data.spotlight = { windowManager };
 
   // Mark initialized as true to confirm plugin loading status
   // outside of the plugin (e.g. scaffold testing process)
