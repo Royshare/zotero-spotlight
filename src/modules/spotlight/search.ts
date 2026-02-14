@@ -127,42 +127,46 @@ async function buildIndex(): Promise<IndexedEntry[]> {
       }
     }
     for (const item of items) {
-      if (!item) {
-        continue;
-      }
-      if (item.isRegularItem()) {
-        if (parentsWithPdf.has(item.id)) {
+      try {
+        if (!item) {
           continue;
         }
-        const title = getItemTitle(item);
-        const subtitle = getItemSubtitle(item);
-        entries.push({
-          id: item.id,
-          kind: "item",
-          title,
-          subtitle,
-          searchText: normalize(`${title} ${subtitle}`),
-        });
-      } else if (item.isNote && item.isNote()) {
-        const title = getNoteTitle(item);
-        const subtitle = getNoteSubtitle(item);
-        entries.push({
-          id: item.id,
-          kind: "item",
-          title,
-          subtitle,
-          searchText: normalize(`${title} ${subtitle}`),
-        });
-      } else if (item.isAttachment() && isPdfAttachment(item)) {
-        const title = getAttachmentTitle(item);
-        const subtitle = getAttachmentSubtitle(item);
-        entries.push({
-          id: item.id,
-          kind: "attachment",
-          title,
-          subtitle,
-          searchText: normalize(`${title} ${subtitle}`),
-        });
+        if (item.isRegularItem()) {
+          if (parentsWithPdf.has(item.id)) {
+            continue;
+          }
+          const title = getItemTitle(item);
+          const subtitle = getItemSubtitle(item);
+          entries.push({
+            id: item.id,
+            kind: "item",
+            title,
+            subtitle,
+            searchText: normalize(`${title} ${subtitle}`),
+          });
+        } else if (item.isNote && item.isNote()) {
+          const title = getNoteTitle(item);
+          const subtitle = getNoteSubtitle(item);
+          entries.push({
+            id: item.id,
+            kind: "item",
+            title,
+            subtitle,
+            searchText: normalize(`${title} ${subtitle}`),
+          });
+        } else if (item.isAttachment() && isPdfAttachment(item)) {
+          const title = getAttachmentTitle(item);
+          const subtitle = getAttachmentSubtitle(item);
+          entries.push({
+            id: item.id,
+            kind: "attachment",
+            title,
+            subtitle,
+            searchText: normalize(`${title} ${subtitle}`),
+          });
+        }
+      } catch (error) {
+        ztoolkit.log("Spotlight skipped item during index build", error);
       }
     }
   }
@@ -170,7 +174,7 @@ async function buildIndex(): Promise<IndexedEntry[]> {
 }
 
 function getItemTitle(item: Zotero.Item): string {
-  return item.getField("title") || item.getDisplayTitle() || "Untitled";
+  return safeGetField(item, "title") || item.getDisplayTitle() || "Untitled";
 }
 
 function getItemSubtitle(item: Zotero.Item): string {
@@ -180,7 +184,7 @@ function getItemSubtitle(item: Zotero.Item): string {
 }
 
 function getItemYear(item: Zotero.Item): string {
-  const date = item.getField("date", true, true) as string;
+  const date = safeGetField(item, "date", true, true);
   if (!date) {
     return "";
   }
@@ -190,7 +194,10 @@ function getItemYear(item: Zotero.Item): string {
 
 function getAttachmentTitle(item: Zotero.Item): string {
   const filename = (item as any).attachmentFilename as string | undefined;
-  const title = item.getField("title") || item.getDisplayTitle();
+  if (filename) {
+    return filename;
+  }
+  const title = safeGetField(item, "title") || item.getDisplayTitle();
   return filename || title || "Attachment";
 }
 
@@ -238,6 +245,35 @@ function isPdfAttachment(item: Zotero.Item): boolean {
   const contentType =
     candidate.attachmentContentType || candidate.attachmentMIMEType;
   return item.isAttachment() && contentType === "application/pdf";
+}
+
+function safeGetField(
+  item: Zotero.Item,
+  field: string,
+  unformatted?: boolean,
+  includeBaseMapped?: boolean,
+): string {
+  try {
+    const value = item.getField(
+      field,
+      unformatted as any,
+      includeBaseMapped as any,
+    ) as string | undefined;
+    return value || "";
+  } catch (error) {
+    if (isUnloadedItemDataError(error)) {
+      return "";
+    }
+    throw error;
+  }
+}
+
+function isUnloadedItemDataError(error: unknown): boolean {
+  const candidate = error as any;
+  return (
+    candidate?.name === "UnloadedDataException" ||
+    candidate?.dataType === "itemData"
+  );
 }
 
 function normalize(value: string): string {
