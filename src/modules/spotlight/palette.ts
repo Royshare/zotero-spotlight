@@ -186,10 +186,7 @@ export class PaletteUI {
         row.classList.add("is-selected");
       }
       const icon = this.createElement("span", "spotlight-icon");
-      const iconURL = this.getResultIconURL(result);
-      if (iconURL) {
-        icon.style.backgroundImage = `url(${iconURL})`;
-      }
+      this.applyResultIcon(icon, result);
       const content = this.createElement("div", "spotlight-content");
       const title = this.createElement("div", "spotlight-title");
       title.textContent = result.title;
@@ -546,11 +543,7 @@ export class PaletteUI {
       | undefined;
     const title =
       filename || attachment.getField("title") || attachment.getDisplayTitle();
-    const parentID =
-      (attachment as any).parentID ?? (attachment as any).parentItemID;
-    const parent = parentID
-      ? (Zotero.Items.get(parentID) as Zotero.Item)
-      : null;
+    const parent = this.getAttachmentParentItem(attachment);
     const subtitle = parent
       ? parent.getField("title") || parent.getDisplayTitle()
       : "";
@@ -561,6 +554,21 @@ export class PaletteUI {
       subtitle,
       score: 0,
     };
+  }
+
+  private getAttachmentParentItem(attachment: Zotero.Item): Zotero.Item | null {
+    const parentID =
+      (attachment as any).parentID ?? (attachment as any).parentItemID;
+    if (typeof parentID === "number") {
+      return Zotero.Items.get(parentID) as Zotero.Item;
+    }
+    const topLevel = (attachment as any).topLevelItem as
+      | Zotero.Item
+      | undefined;
+    if (topLevel && topLevel.id && topLevel.id !== attachment.id) {
+      return topLevel;
+    }
+    return null;
   }
 
   private createNoteResult(noteID: number): QuickOpenResult | null {
@@ -586,38 +594,74 @@ export class PaletteUI {
     };
   }
 
-  private getResultIconURL(result: QuickOpenResult): string | null {
+  private applyResultIcon(icon: HTMLElement, result: QuickOpenResult): void {
     const item = Zotero.Items.get(result.id) as Zotero.Item;
+    const itemTypeIcon = this.getResultItemTypeIcon(item, result);
+    if (itemTypeIcon) {
+      icon.classList.add("icon", "icon-css", "icon-item-type");
+      icon.setAttribute("data-item-type", itemTypeIcon);
+      return;
+    }
+    const iconURL = this.getResultIconURL(item, result);
+    if (iconURL) {
+      icon.style.backgroundImage = `url("${iconURL.replace(/"/g, '\\"')}")`;
+    }
+  }
+
+  private getResultItemTypeIcon(
+    item: Zotero.Item | null,
+    result: QuickOpenResult,
+  ): string | null {
+    if (item?.isAttachment()) {
+      const candidate = item as any;
+      if (
+        typeof candidate.isPDFAttachment === "function" &&
+        candidate.isPDFAttachment()
+      ) {
+        if (
+          typeof candidate.isLinkedFileAttachment === "function" &&
+          candidate.isLinkedFileAttachment()
+        ) {
+          return "attachmentPDFLink";
+        }
+        return "attachmentPDF";
+      }
+    }
+    if (item) {
+      try {
+        const typeIconName =
+          typeof (item as any).getItemTypeIconName === "function"
+            ? (item as any).getItemTypeIconName()
+            : null;
+        if (typeof typeIconName === "string" && typeIconName.trim()) {
+          return typeIconName.trim();
+        }
+      } catch (error) {
+        ztoolkit.log("Failed to get item-type icon name", error);
+      }
+    }
+    if (result.kind === "attachment") {
+      return "attachment";
+    }
+    return "document";
+  }
+
+  private getResultIconURL(
+    item: Zotero.Item | null,
+    result: QuickOpenResult,
+  ): string | null {
     if (item) {
       try {
         const imageSrc =
           typeof (item as any).getImageSrc === "function"
             ? (item as any).getImageSrc()
             : null;
-        if (imageSrc) {
-          return String(imageSrc);
+        const normalizedImageSrc = this.normalizeIconURL(imageSrc);
+        if (normalizedImageSrc) {
+          return normalizedImageSrc;
         }
       } catch (error) {
         ztoolkit.log("Failed to load item icon from getImageSrc", error);
-      }
-      try {
-        const typeIconName =
-          typeof (item as any).getItemTypeIconName === "function"
-            ? (item as any).getItemTypeIconName()
-            : null;
-        if (
-          typeIconName &&
-          typeof (Zotero.ItemTypes as any)?.getImageSrc === "function"
-        ) {
-          const typeImageSrc = (Zotero.ItemTypes as any).getImageSrc(
-            typeIconName,
-          );
-          if (typeImageSrc) {
-            return String(typeImageSrc);
-          }
-        }
-      } catch (error) {
-        ztoolkit.log("Failed to load item-type icon", error);
       }
     }
     return this.getFallbackIconURL(result);
@@ -631,11 +675,36 @@ export class PaletteUI {
       const fallbackType =
         result.kind === "attachment" ? "attachment" : "document";
       const fallback = (Zotero.ItemTypes as any).getImageSrc(fallbackType);
-      return fallback ? String(fallback) : null;
+      return this.normalizeIconURL(fallback);
     } catch (error) {
       ztoolkit.log("Failed to load fallback icon", error);
       return null;
     }
+  }
+
+  private normalizeIconURL(icon: unknown): string | null {
+    if (!icon) {
+      return null;
+    }
+    if (typeof icon === "string") {
+      const trimmed = icon.trim();
+      return trimmed || null;
+    }
+    const candidate = icon as {
+      spec?: unknown;
+      asciiSpec?: unknown;
+      href?: unknown;
+    };
+    if (typeof candidate.spec === "string" && candidate.spec.trim()) {
+      return candidate.spec.trim();
+    }
+    if (typeof candidate.asciiSpec === "string" && candidate.asciiSpec.trim()) {
+      return candidate.asciiSpec.trim();
+    }
+    if (typeof candidate.href === "string" && candidate.href.trim()) {
+      return candidate.href.trim();
+    }
+    return null;
   }
 
   private getResultsLimit(): number {
