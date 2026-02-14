@@ -224,9 +224,9 @@ export class PaletteUI {
         const tag = this.createElement("span", "spotlight-tag");
         tag.textContent = "TAB";
         row.appendChild(tag);
-      } else if (result.kind === "command") {
+      } else if (result.kind === "command" && result.shortcut) {
         const tag = this.createElement("span", "spotlight-tag");
-        tag.textContent = result.shortcut || "CMD";
+        tag.textContent = result.shortcut;
         row.appendChild(tag);
       }
       row.addEventListener("mousemove", () => {

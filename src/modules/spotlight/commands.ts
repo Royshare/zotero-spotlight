@@ -162,7 +162,6 @@ export class CommandRegistry {
         subtitle: "Create a note from current item or library root",
         keywords: ["create", "note", "child", "standalone"],
         contexts: ["main", "reader", "note"],
-        shortcut: "N",
         icon: "note",
         group: "Items",
         isAvailable: ({ pane }) => {
@@ -282,7 +281,6 @@ export class CommandRegistry {
         subtitle: "Jump to parent collection for current item",
         keywords: ["navigate", "folder", "collection", "library"],
         contexts: ["main", "reader", "note"],
-        shortcut: "O",
         icon: "collection",
         group: "Navigation",
         isAvailable: ({ pane, activeItem }) => {
