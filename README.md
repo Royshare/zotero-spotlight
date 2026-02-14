@@ -11,7 +11,6 @@ Press one shortcut inside Zotero and jump to the paper you want.
 
 ![intro](https://github.com/user-attachments/assets/72a63bf3-0d26-46f6-b278-cd2943c73a4d)
 
-
 ---
 
 ## Why
