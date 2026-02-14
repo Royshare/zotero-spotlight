@@ -111,19 +111,19 @@ export class SearchService {
 async function buildIndex(): Promise<IndexedEntry[]> {
   const libraries = Zotero.Libraries.getAll();
   const entries: IndexedEntry[] = [];
-  const parentsWithPdf = new Set<number>();
+  const parentsWithAttachment = new Set<number>();
   for (const library of libraries) {
     const items = await Zotero.Items.getAll(library.libraryID, false, false);
     for (const item of items) {
       if (!item || !item.isAttachment()) {
         continue;
       }
-      if (!isPdfAttachment(item)) {
+      if (!isSearchableAttachment(item)) {
         continue;
       }
       const parentID = (item as any).parentID ?? (item as any).parentItemID;
       if (typeof parentID === "number") {
-        parentsWithPdf.add(parentID);
+        parentsWithAttachment.add(parentID);
       }
     }
     for (const item of items) {
@@ -132,7 +132,7 @@ async function buildIndex(): Promise<IndexedEntry[]> {
           continue;
         }
         if (item.isRegularItem()) {
-          if (parentsWithPdf.has(item.id)) {
+          if (parentsWithAttachment.has(item.id)) {
             continue;
           }
           const title = getItemTitle(item);
@@ -154,7 +154,7 @@ async function buildIndex(): Promise<IndexedEntry[]> {
             subtitle,
             searchText: normalize(`${title} ${subtitle}`),
           });
-        } else if (item.isAttachment() && isPdfAttachment(item)) {
+        } else if (item.isAttachment() && isSearchableAttachment(item)) {
           const title = getAttachmentTitle(item);
           const subtitle = getAttachmentSubtitle(item);
           entries.push({
@@ -237,14 +237,33 @@ function getParentItem(item: Zotero.Item): Zotero.Item | null {
   return Zotero.Items.get(parentID) as Zotero.Item;
 }
 
-function isPdfAttachment(item: Zotero.Item): boolean {
+function isSearchableAttachment(item: Zotero.Item): boolean {
+  if (!item.isAttachment()) {
+    return false;
+  }
   const candidate = item as any;
-  if (typeof candidate.isPDFAttachment === "function") {
-    return candidate.isPDFAttachment();
+  if (typeof item.isAnnotation === "function" && item.isAnnotation()) {
+    return false;
+  }
+  if (
+    typeof candidate.isEmbeddedImageAttachment === "function" &&
+    candidate.isEmbeddedImageAttachment()
+  ) {
+    return false;
+  }
+  if (typeof candidate.isFileAttachment === "function") {
+    if (candidate.isFileAttachment()) {
+      return true;
+    }
+  }
+  if (typeof candidate.isWebAttachment === "function") {
+    if (candidate.isWebAttachment()) {
+      return true;
+    }
   }
   const contentType =
     candidate.attachmentContentType || candidate.attachmentMIMEType;
-  return item.isAttachment() && contentType === "application/pdf";
+  return !!contentType;
 }
 
 function safeGetField(

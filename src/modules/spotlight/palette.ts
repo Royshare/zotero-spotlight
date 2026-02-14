@@ -588,20 +588,54 @@ export class PaletteUI {
 
   private getResultIconURL(result: QuickOpenResult): string | null {
     const item = Zotero.Items.get(result.id) as Zotero.Item;
-    if (!item) {
+    if (item) {
+      try {
+        const imageSrc =
+          typeof (item as any).getImageSrc === "function"
+            ? (item as any).getImageSrc()
+            : null;
+        if (imageSrc) {
+          return String(imageSrc);
+        }
+      } catch (error) {
+        ztoolkit.log("Failed to load item icon from getImageSrc", error);
+      }
+      try {
+        const typeIconName =
+          typeof (item as any).getItemTypeIconName === "function"
+            ? (item as any).getItemTypeIconName()
+            : null;
+        if (
+          typeIconName &&
+          typeof (Zotero.ItemTypes as any)?.getImageSrc === "function"
+        ) {
+          const typeImageSrc = (Zotero.ItemTypes as any).getImageSrc(
+            typeIconName,
+          );
+          if (typeImageSrc) {
+            return String(typeImageSrc);
+          }
+        }
+      } catch (error) {
+        ztoolkit.log("Failed to load item-type icon", error);
+      }
+    }
+    return this.getFallbackIconURL(result);
+  }
+
+  private getFallbackIconURL(result: QuickOpenResult): string | null {
+    if (typeof (Zotero.ItemTypes as any)?.getImageSrc !== "function") {
       return null;
     }
-    const imageSrc =
-      typeof (item as any).getImageSrc === "function"
-        ? (item as any).getImageSrc()
-        : null;
-    if (imageSrc) {
-      return String(imageSrc);
+    try {
+      const fallbackType =
+        result.kind === "attachment" ? "attachment" : "document";
+      const fallback = (Zotero.ItemTypes as any).getImageSrc(fallbackType);
+      return fallback ? String(fallback) : null;
+    } catch (error) {
+      ztoolkit.log("Failed to load fallback icon", error);
+      return null;
     }
-    if (result.kind === "attachment") {
-      return "chrome://zotero/skin/16/universal/file.svg";
-    }
-    return "chrome://zotero/skin/16/universal/note.svg";
   }
 
   private getResultsLimit(): number {

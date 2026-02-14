@@ -24,10 +24,17 @@ export class ActionHandler {
       return;
     }
     if (typeof (Zotero as any).Reader?.open === "function") {
-      await (Zotero as any).Reader.open(attachmentID, {
-        openInWindow: alternate,
-      });
-      return;
+      try {
+        await (Zotero as any).Reader.open(attachmentID, {
+          openInWindow: alternate,
+        });
+        return;
+      } catch (error) {
+        ztoolkit.log(
+          "Reader.open failed, falling back to viewAttachment",
+          error,
+        );
+      }
     }
     const mainWindow = Zotero.getMainWindow();
     const pane = mainWindow?.ZoteroPane;
