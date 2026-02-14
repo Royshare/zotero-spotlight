@@ -30,6 +30,7 @@ Spotlight is different:
 
 - Global shortcut (default: `Cmd+P` on macOS, `Ctrl+P` on Windows/Linux) opens a lightweight command palette.
 - Works inside the PDF reader, note editor, and main window.
+- Command mode: type `>` in the palette to run actions (`Copy Citation`, `Copy Bibliography`, `New Note`, `Open Collection`) based on current context.
 - Keyboard-first:
   - Type to filter
   - ↑ ↓ to select
