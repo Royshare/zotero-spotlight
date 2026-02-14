@@ -202,7 +202,7 @@ function getAttachmentTitle(item: Zotero.Item): string {
 }
 
 function getAttachmentSubtitle(item: Zotero.Item): string {
-  const parent = getParentItem(item);
+  const parent = getAttachmentParentItem(item);
   return parent ? getItemTitle(parent) : "";
 }
 
@@ -235,6 +235,18 @@ function getParentItem(item: Zotero.Item): Zotero.Item | null {
     return null;
   }
   return Zotero.Items.get(parentID) as Zotero.Item;
+}
+
+function getAttachmentParentItem(item: Zotero.Item): Zotero.Item | null {
+  const directParent = getParentItem(item);
+  if (directParent) {
+    return directParent;
+  }
+  const topLevel = (item as any).topLevelItem as Zotero.Item | undefined;
+  if (topLevel && topLevel.id && topLevel.id !== item.id) {
+    return topLevel;
+  }
+  return null;
 }
 
 function isSearchableAttachment(item: Zotero.Item): boolean {
