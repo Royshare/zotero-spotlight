@@ -1,4 +1,6 @@
 import type { ActionHandler } from "./actions";
+import { CommandRegistry } from "./commands";
+import type { CommandResult } from "./commands";
 import type { QuickOpenResult } from "./search";
 import type { SearchService } from "./search";
 import { getPref } from "../../utils/prefs";
@@ -13,14 +15,16 @@ export class PaletteUI {
   private list: HTMLDivElement;
   private styleElement: HTMLStyleElement;
   private searchService: SearchService;
+  private commandRegistry: CommandRegistry;
   private actionHandler: ActionHandler;
-  private results: QuickOpenResult[] = [];
+  private results: Array<QuickOpenResult | CommandResult> = [];
   private selectedIndex = 0;
   private open = false;
   private searchToken = 0;
   private outsideClickHandler: (event: MouseEvent) => void;
   private currentQuery = "";
-  private showRecentHeader = false;
+  private sectionHeader = "";
+  private displayMode: "recent" | "search" | "command" = "recent";
   private lastOpenReaderIDs = new Set<number>();
   private recentClosedAttachmentIDs: number[] = [];
 
@@ -32,6 +36,7 @@ export class PaletteUI {
     this.win = win;
     this.doc = win.document;
     this.searchService = searchService;
+    this.commandRegistry = new CommandRegistry();
     this.actionHandler = actionHandler;
     this.outsideClickHandler = (event: MouseEvent) => {
       if (!this.open) {
@@ -119,24 +124,30 @@ export class PaletteUI {
 
   private async updateResults(query: string): Promise<void> {
     const token = (this.searchToken += 1);
-    this.currentQuery = query.trim();
+    const parsedQuery = this.parseQuery(query);
+    this.currentQuery = parsedQuery.query;
     const resultsLimit = this.getResultsLimit();
-    if (!this.currentQuery) {
+    if (!parsedQuery.isCommandMode && !this.currentQuery) {
       this.results = this.buildRecentResults();
-      this.showRecentHeader = true;
+      this.sectionHeader = "Recent";
+      this.displayMode = "recent";
       this.selectedIndex = 0;
       this.renderResults();
       return;
     }
-    const results = await this.searchService.search(
-      this.currentQuery,
-      resultsLimit,
-    );
+    const results = parsedQuery.isCommandMode
+      ? await this.commandRegistry.search(
+          this.currentQuery,
+          this.win,
+          resultsLimit,
+        )
+      : await this.searchService.search(this.currentQuery, resultsLimit);
     if (token !== this.searchToken) {
       return;
     }
     this.results = results;
-    this.showRecentHeader = false;
+    this.sectionHeader = parsedQuery.isCommandMode ? "Commands" : "Results";
+    this.displayMode = parsedQuery.isCommandMode ? "command" : "search";
     this.selectedIndex = 0;
     this.renderResults();
   }
@@ -158,6 +169,16 @@ export class PaletteUI {
     if (!result) {
       return;
     }
+    if (result.kind === "command") {
+      const executed = await this.commandRegistry.run(
+        result.commandId,
+        this.win,
+      );
+      if (executed) {
+        this.hide();
+      }
+      return;
+    }
     await this.actionHandler.openResult(result, alternate);
     this.hide();
   }
@@ -167,16 +188,19 @@ export class PaletteUI {
     const openTabItemIDs = new Set(
       this.getOpenTabEntries().map((entry) => entry.itemID),
     );
-    if (this.showRecentHeader) {
+    if (this.sectionHeader) {
       const header = this.createElement("div", "spotlight-section");
-      header.textContent = "Recent";
+      header.textContent = this.sectionHeader;
       this.list.appendChild(header);
     }
     if (!this.results.length) {
       const empty = this.createElement("div", "spotlight-empty");
-      empty.textContent = this.showRecentHeader
-        ? "No recent items"
-        : "No results";
+      empty.textContent =
+        this.displayMode === "recent"
+          ? "No recent items"
+          : this.displayMode === "command"
+            ? "No commands"
+            : "No results";
       this.list.appendChild(empty);
       return;
     }
@@ -196,9 +220,13 @@ export class PaletteUI {
       content.appendChild(subtitle);
       row.appendChild(icon);
       row.appendChild(content);
-      if (openTabItemIDs.has(result.id)) {
+      if (result.kind !== "command" && openTabItemIDs.has(result.id)) {
         const tag = this.createElement("span", "spotlight-tag");
         tag.textContent = "TAB";
+        row.appendChild(tag);
+      } else if (result.kind === "command" && result.shortcut) {
+        const tag = this.createElement("span", "spotlight-tag");
+        tag.textContent = result.shortcut;
         row.appendChild(tag);
       }
       row.addEventListener("mousemove", () => {
@@ -326,6 +354,12 @@ export class PaletteUI {
   background-repeat: no-repeat;
   background-position: center;
   opacity: 0.9;
+}
+
+.spotlight-command-icon {
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 16px 16px;
 }
 
 .spotlight-tag {
@@ -594,7 +628,20 @@ export class PaletteUI {
     };
   }
 
-  private applyResultIcon(icon: HTMLElement, result: QuickOpenResult): void {
+  private applyResultIcon(
+    icon: HTMLElement,
+    result: QuickOpenResult | CommandResult,
+  ): void {
+    if (result.kind === "command") {
+      icon.classList.add("spotlight-command-icon");
+      const commandIconURL = this.getCommandIconURL(result.icon);
+      if (commandIconURL) {
+        icon.style.backgroundImage = `url("${commandIconURL}")`;
+      } else {
+        icon.textContent = ">";
+      }
+      return;
+    }
     const item = Zotero.Items.get(result.id) as Zotero.Item;
     const itemTypeIcon = this.getResultItemTypeIcon(item, result);
     if (itemTypeIcon) {
@@ -713,5 +760,38 @@ export class PaletteUI {
       return 20;
     }
     return Math.min(40, Math.max(5, raw));
+  }
+
+  private parseQuery(rawQuery: string): {
+    isCommandMode: boolean;
+    query: string;
+  } {
+    const trimmedStart = rawQuery.trimStart();
+    if (trimmedStart.startsWith(">")) {
+      return {
+        isCommandMode: true,
+        query: trimmedStart.slice(1).trim(),
+      };
+    }
+    return {
+      isCommandMode: false,
+      query: rawQuery.trim(),
+    };
+  }
+
+  private getCommandIconURL(iconName?: string): string | null {
+    if (iconName === "note") {
+      return "chrome://zotero/skin/16/universal/note.svg";
+    }
+    if (iconName === "copy-citation") {
+      return "chrome://zotero/skin/16/universal/citation-dialog-list.svg";
+    }
+    if (iconName === "copy-bibliography") {
+      return "chrome://zotero/skin/16/universal/list-number.svg";
+    }
+    if (iconName === "collection") {
+      return "chrome://zotero/skin/16/universal/library-collection.svg";
+    }
+    return null;
   }
 }
