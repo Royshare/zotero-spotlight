@@ -51,28 +51,28 @@ Zotero Spotlight aims to become a **universal command surface inside Zotero** �
 
 ### Phase 2 — Actions & Commands
 
-- Command registry (e.g. _New note_, _Copy citation_, _Open collection_)
-- Context-aware actions (item-focused vs reader-focused)
-- Discoverable commands with keyboard shortcuts
+- [x] Command registry (e.g. _New note_, _Copy citation_, _Open collection_)
+- [x] Context-aware actions (item-focused vs reader-focused)
+- [x] Discoverable commands with keyboard shortcuts
 
 ### Phase 3 — Rich Results & Filters
 
-- Search tokens / filters (e.g. `type:`, `tag:`, `year:`)
-- Result badges (PDF, Note, Collection)
-- Improved ranking (recent, frequency, library scope)
+- [x] Search tokens / filters (e.g. `type:`, `tag:`, `year:`)
+- [x] Result badges (PDF, Note, Year, Group, Tab)
+- [x] Improved ranking (recent, frequency, library scope)
 
 ### Phase 4 — Productivity Layer
 
-- Quick actions on results (e.g. Enter vs modifier keys)
-- Lightweight multi-step workflows  
-  _(select item → add note → open PDF)_
-- Smart recents and search history (per window)
+- [x] Quick actions on results (e.g. Enter vs modifier keys)
+- [x] Lightweight multi-step workflows  
+      _(select item → add note → open PDF)_
+- [x] Smart recents and search history (per window)
 
 ### Phase 5 — UI Polish
 
 - [x] Styling aligned with Zotero light / dark themes
-- Rich preview rows (authors, year, tags, abstract snippet)
-- Subtle animations with minimal distraction
+- [x] Rich preview rows (authors, year, tags, abstract snippet)
+- [x] Subtle animations with minimal distraction
 
 ---
 
