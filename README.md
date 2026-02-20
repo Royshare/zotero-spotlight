@@ -30,11 +30,17 @@ Spotlight is different:
 
 - Global shortcut (default: `Cmd+P` on macOS, `Ctrl+P` on Windows/Linux) opens a lightweight command palette.
 - Works inside the PDF reader, note editor, and main window.
-- Command mode: type `>` in the palette to run actions (`Copy Citation`, `Copy Bibliography`, `New Note`, `Open Collection`) based on current context.
+- Search tokens/filters: `type:`, `tag:`, and `year:` for faster narrowing.
+- Rich result rows with metadata preview (authors, year, tags, abstract snippet) and badges (`PDF`, `NOTE`, `ITEM`, `GROUP`, `TAB`).
+- Ranking boosts for recency, frequency, and active library scope.
+- Smart recents and per-window search history (including one-click removal from history).
+- Command mode: type `>` in the palette to run actions (`Copy Citation`, `Copy Bibliography`, `New Note`, `Open Collection`, `Add Note + Open PDF`) based on current context.
 - Keyboard-first:
   - Type to filter
   - ↑ ↓ to select
   - Enter to open
+  - `Cmd/Ctrl+Enter` to open in alternate window mode
+  - `Shift+Enter` to reveal selected item in library
   - Esc to close
 
 ---
@@ -58,7 +64,7 @@ Zotero Spotlight aims to become a **universal command surface inside Zotero** �
 ### Phase 3 — Rich Results & Filters
 
 - [x] Search tokens / filters (e.g. `type:`, `tag:`, `year:`)
-- [x] Result badges (PDF, Note, Year, Group, Tab)
+- [x] Result badges (PDF, Note, Group, Tab)
 - [x] Improved ranking (recent, frequency, library scope)
 
 ### Phase 4 — Productivity Layer
