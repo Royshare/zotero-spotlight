@@ -71,7 +71,7 @@ Zotero Spotlight aims to become a **universal command surface inside Zotero** �
 
 - [x] Quick actions on results (e.g. Enter vs modifier keys)
 - [x] Lightweight multi-step workflows  
-      _(select item → add note → open PDF)_
+       _(select item → add note → open PDF)_
 - [x] Smart recents and search history (per window)
 
 ### Phase 5 — UI Polish
