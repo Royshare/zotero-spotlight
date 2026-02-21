@@ -276,6 +276,52 @@ export class CommandRegistry {
         },
       },
       {
+        id: "note-and-open-pdf",
+        title: "Add Note + Open PDF",
+        subtitle: "Create note for current item and open its PDF",
+        keywords: ["workflow", "note", "pdf", "open", "focus"],
+        contexts: ["main", "reader", "note"],
+        icon: "note",
+        group: "Workflow",
+        isAvailable: ({ pane, activeItem }) => {
+          if (!pane) {
+            return {
+              enabled: false,
+              reason: "Main Zotero pane is unavailable",
+            };
+          }
+          if (typeof pane.canEdit === "function" && !pane.canEdit()) {
+            return { enabled: false, reason: "Selected library is read-only" };
+          }
+          const parent = getParentForCommand(activeItem);
+          if (!parent || !parent.isRegularItem()) {
+            return { enabled: false, reason: "Select an item first" };
+          }
+          return { enabled: true };
+        },
+        run: async ({ pane, activeItem }) => {
+          if (!pane) {
+            return;
+          }
+          const parent = getParentForCommand(activeItem);
+          if (!parent || !parent.isRegularItem()) {
+            return;
+          }
+          await pane.newNote(false, parent.key);
+          const attachmentID = await getBestPdfAttachmentID(parent);
+          if (!attachmentID) {
+            return;
+          }
+          if (typeof (Zotero as any).Reader?.open === "function") {
+            await (Zotero as any).Reader.open(attachmentID, {
+              openInWindow: false,
+            });
+            return;
+          }
+          pane.viewAttachment?.(attachmentID);
+        },
+      },
+      {
         id: "open-collection",
         title: "Open Collection",
         subtitle: "Jump to parent collection for current item",
@@ -389,6 +435,41 @@ function getFirstCollectionID(item: Zotero.Item): number | null {
   }
   const collectionID = collections[0];
   return typeof collectionID === "number" ? collectionID : null;
+}
+
+async function getBestPdfAttachmentID(
+  item: Zotero.Item,
+): Promise<number | null> {
+  const candidate = item as any;
+  if (typeof candidate.getBestAttachment === "function") {
+    const best = await candidate.getBestAttachment();
+    if (typeof best === "number") {
+      const bestItem = Zotero.Items.get(best) as Zotero.Item;
+      return bestItem && isPDFAttachment(bestItem) ? best : null;
+    }
+    if (best?.id) {
+      const bestItem = Zotero.Items.get(best.id) as Zotero.Item;
+      return bestItem && isPDFAttachment(bestItem) ? (best.id as number) : null;
+    }
+  }
+  const attachmentIDs = candidate.getAttachments?.() || [];
+  for (const attachmentID of attachmentIDs) {
+    const attachment = Zotero.Items.get(attachmentID) as Zotero.Item;
+    if (attachment && isPDFAttachment(attachment)) {
+      return attachmentID;
+    }
+  }
+  return null;
+}
+
+function isPDFAttachment(item: Zotero.Item): boolean {
+  const candidate = item as any;
+  if (typeof candidate.isPDFAttachment === "function") {
+    return !!candidate.isPDFAttachment();
+  }
+  const contentType =
+    candidate.attachmentContentType || candidate.attachmentMIMEType || "";
+  return String(contentType).toLowerCase().includes("pdf");
 }
 
 function getActiveTabItemID(win: Window): number | null {

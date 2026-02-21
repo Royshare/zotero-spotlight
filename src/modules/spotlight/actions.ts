@@ -1,7 +1,17 @@
 import type { QuickOpenResult } from "./search";
 
+export type OpenIntent = "default" | "alternate" | "reveal";
+
 export class ActionHandler {
-  async openResult(result: QuickOpenResult, alternate = false): Promise<void> {
+  async openResult(
+    result: QuickOpenResult,
+    intent: OpenIntent = "default",
+  ): Promise<void> {
+    if (intent === "reveal") {
+      await this.revealInLibrary(result.id);
+      return;
+    }
+    const alternate = intent === "alternate";
     if (result.kind === "attachment") {
       await this.openAttachment(result.id, alternate);
       return;
@@ -81,6 +91,15 @@ export class ActionHandler {
     const attachmentID = await this.getPrimaryAttachmentID(itemID);
     if (attachmentID) {
       await this.openAttachment(attachmentID, alternate);
+    }
+  }
+
+  private async revealInLibrary(itemID: number): Promise<void> {
+    const mainWindow = Zotero.getMainWindow();
+    mainWindow?.Zotero_Tabs?.select?.("zotero-pane");
+    const pane = mainWindow?.ZoteroPane;
+    if (pane?.selectItem) {
+      await pane.selectItem(itemID);
     }
   }
 

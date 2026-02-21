@@ -1,13 +1,30 @@
+import {
+  getItemAbstractSnippetSafe,
+  getItemAuthorsSafe,
+  getItemSubtitleSafe,
+  getItemTagsSafe,
+  getItemTitleSafe,
+  getItemYearSafe,
+  isPDFAttachment,
+} from "./itemMetadata";
+
 export type QuickOpenResult = ItemResult | AttachmentResult;
 
 export type ResultKind = "item" | "attachment";
+export type ResultType = "item" | "note" | "pdf";
 
 export interface BaseResult {
   id: number;
   kind: ResultKind;
+  resultType: ResultType;
   title: string;
   subtitle: string;
   score: number;
+  year?: number;
+  libraryKind?: "user" | "group";
+  authors?: string;
+  tags?: string[];
+  abstractSnippet?: string;
 }
 
 export interface ItemResult extends BaseResult {
@@ -21,9 +38,26 @@ export interface AttachmentResult extends BaseResult {
 type IndexedEntry = {
   id: number;
   kind: ResultKind;
+  resultType: ResultType;
   title: string;
   subtitle: string;
+  authors: string;
+  tags: string[];
+  abstractSnippet: string;
+  year: number | null;
+  libraryID: number;
+  libraryKind: "user" | "group";
   searchText: string;
+};
+
+type ParsedQuery = {
+  textQuery: string;
+  filters: {
+    types: Set<ResultType>;
+    tags: string[];
+    yearMin?: number;
+    yearMax?: number;
+  };
 };
 
 export class SearchService {
@@ -32,6 +66,8 @@ export class SearchService {
   private indexStale = true;
   private lastIndexedAt = 0;
   private notifierID: string | null = null;
+  private usageCounts = new Map<number, number>();
+  private recentItemIDs: number[] = [];
 
   constructor() {
     this.registerNotifier();
@@ -44,36 +80,54 @@ export class SearchService {
     }
   }
 
-  async search(query: string, limit = 20): Promise<QuickOpenResult[]> {
-    const trimmed = query.trim();
+  async search(
+    query: string,
+    win: Window,
+    limit = 20,
+  ): Promise<QuickOpenResult[]> {
+    const parsedQuery = parseStructuredQuery(query);
+    const activeLibraryID = this.getActiveLibraryID(win);
     await this.ensureIndex();
-    if (!trimmed) {
-      return this.index.slice(0, limit).map(
-        (entry, index) =>
-          ({
-            id: entry.id,
-            kind: entry.kind,
-            title: entry.title,
-            subtitle: entry.subtitle,
-            score: limit - index,
-          }) as QuickOpenResult,
-      );
-    }
     const results: QuickOpenResult[] = [];
     for (const entry of this.index) {
-      const score = fuzzyScore(trimmed, entry.searchText);
-      if (score <= 0) {
+      if (!matchesFilters(entry, parsedQuery.filters)) {
         continue;
       }
+      const baseScore = parsedQuery.textQuery
+        ? fuzzyScore(parsedQuery.textQuery, entry.searchText)
+        : 10;
+      if (baseScore <= 0) {
+        continue;
+      }
+      const frequencyBoost = (this.usageCounts.get(entry.id) || 0) * 3;
+      const recencyBoost = this.getRecencyBoost(entry.id);
+      const libraryBoost =
+        activeLibraryID !== null && activeLibraryID === entry.libraryID ? 6 : 0;
       results.push({
         id: entry.id,
         kind: entry.kind,
+        resultType: entry.resultType,
         title: entry.title,
         subtitle: entry.subtitle,
-        score,
+        score: baseScore + frequencyBoost + recencyBoost + libraryBoost,
+        year: entry.year === null ? undefined : entry.year,
+        libraryKind: entry.libraryKind,
+        authors: entry.authors || undefined,
+        tags: entry.tags.length ? entry.tags : undefined,
+        abstractSnippet: entry.abstractSnippet || undefined,
       } as QuickOpenResult);
     }
     return results.sort((a, b) => b.score - a.score).slice(0, limit);
+  }
+
+  recordOpen(itemID: number): void {
+    if (!itemID || typeof itemID !== "number") {
+      return;
+    }
+    this.usageCounts.set(itemID, (this.usageCounts.get(itemID) || 0) + 1);
+    this.recentItemIDs = this.recentItemIDs.filter((id) => id !== itemID);
+    this.recentItemIDs.unshift(itemID);
+    this.recentItemIDs = this.recentItemIDs.slice(0, 80);
   }
 
   async warmIndex(): Promise<void> {
@@ -106,6 +160,25 @@ export class SearchService {
       "file",
     ]);
   }
+
+  private getRecencyBoost(itemID: number): number {
+    const index = this.recentItemIDs.indexOf(itemID);
+    if (index < 0) {
+      return 0;
+    }
+    return Math.max(0, 8 - index);
+  }
+
+  private getActiveLibraryID(win: Window): number | null {
+    const localPane = (win as any).ZoteroPane as
+      | _ZoteroTypes.ZoteroPane
+      | undefined;
+    const mainPane = Zotero.getMainWindow()?.ZoteroPane;
+    const activePane =
+      localPane || mainPane || (Zotero.getActiveZoteroPane?.() as any);
+    const selectedLibraryID = activePane?.getSelectedLibraryID?.();
+    return typeof selectedLibraryID === "number" ? selectedLibraryID : null;
+  }
 }
 
 async function buildIndex(): Promise<IndexedEntry[]> {
@@ -113,6 +186,8 @@ async function buildIndex(): Promise<IndexedEntry[]> {
   const entries: IndexedEntry[] = [];
   const parentsWithAttachment = new Set<number>();
   for (const library of libraries) {
+    const libraryKind =
+      (library as any).libraryType === "group" ? "group" : "user";
     const items = await Zotero.Items.getAll(library.libraryID, false, false);
     for (const item of items) {
       if (!item || !item.isAttachment()) {
@@ -137,32 +212,72 @@ async function buildIndex(): Promise<IndexedEntry[]> {
           }
           const title = getItemTitle(item);
           const subtitle = getItemSubtitle(item);
+          const authors = getItemAuthors(item);
+          const tags = getItemTags(item);
+          const abstractSnippet = getItemAbstractSnippet(item);
           entries.push({
             id: item.id,
             kind: "item",
+            resultType: "item",
             title,
             subtitle,
-            searchText: normalize(`${title} ${subtitle}`),
+            authors,
+            tags,
+            abstractSnippet,
+            year: getItemYearNumber(item),
+            libraryID: library.libraryID,
+            libraryKind,
+            searchText: normalize(
+              `${title} ${subtitle} ${authors} ${tags.join(" ")} ${abstractSnippet}`,
+            ),
           });
         } else if (item.isNote && item.isNote()) {
           const title = getNoteTitle(item);
           const subtitle = getNoteSubtitle(item);
+          const parent = getParentItem(item);
+          const authors = parent ? getItemAuthors(parent) : "";
+          const tags = getItemTags(item);
+          const abstractSnippet = parent ? getItemAbstractSnippet(parent) : "";
           entries.push({
             id: item.id,
             kind: "item",
+            resultType: "note",
             title,
             subtitle,
-            searchText: normalize(`${title} ${subtitle}`),
+            authors,
+            tags,
+            abstractSnippet,
+            year: getParentYearNumber(item),
+            libraryID: library.libraryID,
+            libraryKind,
+            searchText: normalize(
+              `${title} ${subtitle} ${authors} ${tags.join(" ")} ${abstractSnippet}`,
+            ),
           });
         } else if (item.isAttachment() && isSearchableAttachment(item)) {
           const title = getAttachmentTitle(item);
           const subtitle = getAttachmentSubtitle(item);
+          const parent = getAttachmentParentItem(item);
+          const authors = parent ? getItemAuthors(parent) : "";
+          const attachmentTags = getItemTags(item);
+          const parentTags = parent ? getItemTags(parent) : [];
+          const tags = [...attachmentTags, ...parentTags].filter(Boolean);
+          const abstractSnippet = parent ? getItemAbstractSnippet(parent) : "";
           entries.push({
             id: item.id,
             kind: "attachment",
+            resultType: isPDFAttachment(item) ? "pdf" : "item",
             title,
             subtitle,
-            searchText: normalize(`${title} ${subtitle}`),
+            authors,
+            tags,
+            abstractSnippet,
+            year: getAttachmentYearNumber(item),
+            libraryID: library.libraryID,
+            libraryKind,
+            searchText: normalize(
+              `${title} ${subtitle} ${authors} ${tags.join(" ")} ${abstractSnippet}`,
+            ),
           });
         }
       } catch (error) {
@@ -174,22 +289,19 @@ async function buildIndex(): Promise<IndexedEntry[]> {
 }
 
 function getItemTitle(item: Zotero.Item): string {
-  return safeGetField(item, "title") || item.getDisplayTitle() || "Untitled";
+  return getItemTitleSafe(item) || "Untitled";
 }
 
 function getItemSubtitle(item: Zotero.Item): string {
-  const creator = (item as any).firstCreator || "";
-  const year = getItemYear(item);
-  return [creator, year].filter(Boolean).join(" ");
+  return getItemSubtitleSafe(item);
 }
 
-function getItemYear(item: Zotero.Item): string {
-  const date = safeGetField(item, "date", true, true);
-  if (!date) {
-    return "";
-  }
-  const match = date.match(/\b\d{4}\b/);
-  return match ? match[0] : "";
+function getItemAuthors(item: Zotero.Item): string {
+  return getItemAuthorsSafe(item);
+}
+
+function getItemAbstractSnippet(item: Zotero.Item): string {
+  return getItemAbstractSnippetSafe(item, 120);
 }
 
 function getAttachmentTitle(item: Zotero.Item): string {
@@ -197,7 +309,7 @@ function getAttachmentTitle(item: Zotero.Item): string {
   if (filename) {
     return filename;
   }
-  const title = safeGetField(item, "title") || item.getDisplayTitle();
+  const title = getItemTitleSafe(item);
   return filename || title || "Attachment";
 }
 
@@ -206,8 +318,26 @@ function getAttachmentSubtitle(item: Zotero.Item): string {
   return parent ? getItemTitle(parent) : "";
 }
 
+function getItemTags(item: Zotero.Item): string[] {
+  return getItemTagsSafe(item);
+}
+
+function getItemYearNumber(item: Zotero.Item): number | null {
+  return getItemYearSafe(item) ?? null;
+}
+
+function getParentYearNumber(item: Zotero.Item): number | null {
+  const parent = getParentItem(item);
+  return parent ? getItemYearNumber(parent) : null;
+}
+
+function getAttachmentYearNumber(item: Zotero.Item): number | null {
+  const parent = getAttachmentParentItem(item);
+  return parent ? getItemYearNumber(parent) : null;
+}
+
 function getNoteTitle(item: Zotero.Item): string {
-  const note = (item as any).getNote?.() as string | undefined;
+  const note = safeGetNote(item);
   if (!note) {
     return "Note";
   }
@@ -278,33 +408,172 @@ function isSearchableAttachment(item: Zotero.Item): boolean {
   return !!contentType;
 }
 
-function safeGetField(
-  item: Zotero.Item,
-  field: string,
-  unformatted?: boolean,
-  includeBaseMapped?: boolean,
-): string {
+function safeGetNote(item: Zotero.Item): string {
   try {
-    const value = item.getField(
-      field,
-      unformatted as any,
-      includeBaseMapped as any,
-    ) as string | undefined;
-    return value || "";
+    const noteValue = (item as any).getNote?.() as string | undefined;
+    return noteValue || "";
   } catch (error) {
-    if (isUnloadedItemDataError(error)) {
+    if (isUnloadedDataError(error)) {
       return "";
     }
     throw error;
   }
 }
 
-function isUnloadedItemDataError(error: unknown): boolean {
+function isUnloadedDataError(error: unknown): boolean {
   const candidate = error as any;
   return (
     candidate?.name === "UnloadedDataException" ||
-    candidate?.dataType === "itemData"
+    typeof candidate?.dataType === "string"
   );
+}
+
+function parseStructuredQuery(rawQuery: string): ParsedQuery {
+  const tokens = tokenize(rawQuery);
+  const textTokens: string[] = [];
+  const types = new Set<ResultType>();
+  const tags: string[] = [];
+  let yearMin: number | undefined;
+  let yearMax: number | undefined;
+
+  for (const token of tokens) {
+    const lower = token.toLowerCase();
+    if (lower.startsWith("type:")) {
+      const parsedTypes = parseTypeFilter(token.slice(5));
+      parsedTypes.forEach((type) => types.add(type));
+      continue;
+    }
+    if (lower.startsWith("tag:")) {
+      const tagValue = normalize(unquoteToken(token.slice(4)));
+      if (tagValue) {
+        tags.push(tagValue);
+      }
+      continue;
+    }
+    if (lower.startsWith("year:")) {
+      const yearRange = parseYearFilter(token.slice(5));
+      if (yearRange) {
+        yearMin =
+          typeof yearRange.min === "number"
+            ? typeof yearMin === "number"
+              ? Math.max(yearMin, yearRange.min)
+              : yearRange.min
+            : yearMin;
+        yearMax =
+          typeof yearRange.max === "number"
+            ? typeof yearMax === "number"
+              ? Math.min(yearMax, yearRange.max)
+              : yearRange.max
+            : yearMax;
+      }
+      continue;
+    }
+    textTokens.push(token);
+  }
+
+  return {
+    textQuery: textTokens.join(" ").trim(),
+    filters: {
+      types,
+      tags,
+      yearMin,
+      yearMax,
+    },
+  };
+}
+
+function tokenize(query: string): string[] {
+  const matches = query.match(/(?:[^\s"]+|"[^"]*")+/g);
+  return matches ? matches.map((token) => token.trim()).filter(Boolean) : [];
+}
+
+function unquoteToken(token: string): string {
+  const trimmed = token.trim();
+  if (trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function parseTypeFilter(rawValue: string): ResultType[] {
+  const value = unquoteToken(rawValue);
+  if (!value) {
+    return [];
+  }
+  const values = value
+    .split("|")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+  const parsed: ResultType[] = [];
+  for (const entry of values) {
+    if (entry === "pdf" || entry === "note" || entry === "item") {
+      parsed.push(entry);
+    }
+  }
+  return parsed;
+}
+
+function parseYearFilter(
+  rawValue: string,
+): { min?: number; max?: number } | null {
+  const value = unquoteToken(rawValue).trim();
+  if (!value) {
+    return null;
+  }
+  const rangeMatch = value.match(/^(\d{4})-(\d{4})$/);
+  if (rangeMatch) {
+    const start = Number(rangeMatch[1]);
+    const end = Number(rangeMatch[2]);
+    if (!Number.isNaN(start) && !Number.isNaN(end)) {
+      return {
+        min: Math.min(start, end),
+        max: Math.max(start, end),
+      };
+    }
+    return null;
+  }
+  const gteMatch = value.match(/^>=?(\d{4})$/);
+  if (gteMatch) {
+    return { min: Number(gteMatch[1]) };
+  }
+  const lteMatch = value.match(/^<=?(\d{4})$/);
+  if (lteMatch) {
+    return { max: Number(lteMatch[1]) };
+  }
+  const exactMatch = value.match(/^(\d{4})$/);
+  if (exactMatch) {
+    const exact = Number(exactMatch[1]);
+    return { min: exact, max: exact };
+  }
+  return null;
+}
+
+function matchesFilters(
+  entry: IndexedEntry,
+  filters: ParsedQuery["filters"],
+): boolean {
+  if (filters.types.size > 0 && !filters.types.has(entry.resultType)) {
+    return false;
+  }
+  if (filters.tags.length > 0) {
+    const entryTags = new Set(entry.tags);
+    for (const tag of filters.tags) {
+      if (!entryTags.has(tag)) {
+        return false;
+      }
+    }
+  }
+  if (typeof filters.yearMin === "number") {
+    if (entry.year === null || entry.year < filters.yearMin) {
+      return false;
+    }
+  }
+  if (typeof filters.yearMax === "number") {
+    if (entry.year === null || entry.year > filters.yearMax) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function normalize(value: string): string {

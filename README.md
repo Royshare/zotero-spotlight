@@ -30,11 +30,17 @@ Spotlight is different:
 
 - Global shortcut (default: `Cmd+P` on macOS, `Ctrl+P` on Windows/Linux) opens a lightweight command palette.
 - Works inside the PDF reader, note editor, and main window.
-- Command mode: type `>` in the palette to run actions (`Copy Citation`, `Copy Bibliography`, `New Note`, `Open Collection`) based on current context.
+- Search tokens/filters: `type:`, `tag:`, and `year:` for faster narrowing.
+- Rich result rows with metadata preview (authors, year, tags, abstract snippet) and badges (`PDF`, `NOTE`, `ITEM`, `GROUP`, `TAB`).
+- Ranking boosts for recency, frequency, and active library scope.
+- Smart recents and per-window search history (including one-click removal from history).
+- Command mode: type `>` in the palette to run actions (`Copy Citation`, `Copy Bibliography`, `New Note`, `Open Collection`, `Add Note + Open PDF`) based on current context.
 - Keyboard-first:
   - Type to filter
   - ↑ ↓ to select
   - Enter to open
+  - `Cmd/Ctrl+Enter` to open in alternate window mode
+  - `Shift+Enter` to reveal selected item in library
   - Esc to close
 
 ---
@@ -51,28 +57,28 @@ Zotero Spotlight aims to become a **universal command surface inside Zotero** �
 
 ### Phase 2 — Actions & Commands
 
-- Command registry (e.g. _New note_, _Copy citation_, _Open collection_)
-- Context-aware actions (item-focused vs reader-focused)
-- Discoverable commands with keyboard shortcuts
+- [x] Command registry (e.g. _New note_, _Copy citation_, _Open collection_)
+- [x] Context-aware actions (item-focused vs reader-focused)
+- [x] Discoverable commands with keyboard shortcuts
 
 ### Phase 3 — Rich Results & Filters
 
-- Search tokens / filters (e.g. `type:`, `tag:`, `year:`)
-- Result badges (PDF, Note, Collection)
-- Improved ranking (recent, frequency, library scope)
+- [x] Search tokens / filters (e.g. `type:`, `tag:`, `year:`)
+- [x] Result badges (PDF, Note, Group, Tab)
+- [x] Improved ranking (recent, frequency, library scope)
 
 ### Phase 4 — Productivity Layer
 
-- Quick actions on results (e.g. Enter vs modifier keys)
-- Lightweight multi-step workflows  
-  _(select item → add note → open PDF)_
-- Smart recents and search history (per window)
+- [x] Quick actions on results (e.g. Enter vs modifier keys)
+- [x] Lightweight multi-step workflows  
+      _(select item → add note → open PDF)_
+- [x] Smart recents and search history (per window)
 
 ### Phase 5 — UI Polish
 
 - [x] Styling aligned with Zotero light / dark themes
-- Rich preview rows (authors, year, tags, abstract snippet)
-- Subtle animations with minimal distraction
+- [x] Rich preview rows (authors, year, tags, abstract snippet)
+- [x] Subtle animations with minimal distraction
 
 ---
 

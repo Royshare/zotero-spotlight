@@ -1,11 +1,28 @@
-import type { ActionHandler } from "./actions";
+import type { ActionHandler, OpenIntent } from "./actions";
 import { CommandRegistry } from "./commands";
 import type { CommandResult } from "./commands";
 import type { QuickOpenResult } from "./search";
 import type { SearchService } from "./search";
+import {
+  getItemAbstractSnippetSafe,
+  getItemAuthorsSafe,
+  getItemSubtitleSafe,
+  getItemTagsSafe,
+  getItemTitleSafe,
+  getItemYearSafe,
+  isPDFAttachment,
+} from "./itemMetadata";
 import { getPref } from "../../utils/prefs";
 
 const HTML_NS = "http://www.w3.org/1999/xhtml";
+
+type HistoryResult = {
+  kind: "history";
+  query: string;
+  title: string;
+  subtitle: string;
+  score: number;
+};
 
 export class PaletteUI {
   private win: Window;
@@ -17,7 +34,7 @@ export class PaletteUI {
   private searchService: SearchService;
   private commandRegistry: CommandRegistry;
   private actionHandler: ActionHandler;
-  private results: Array<QuickOpenResult | CommandResult> = [];
+  private results: Array<QuickOpenResult | CommandResult | HistoryResult> = [];
   private selectedIndex = 0;
   private open = false;
   private searchToken = 0;
@@ -27,6 +44,8 @@ export class PaletteUI {
   private displayMode: "recent" | "search" | "command" = "recent";
   private lastOpenReaderIDs = new Set<number>();
   private recentClosedAttachmentIDs: number[] = [];
+  private recentActivatedItemIDs: number[] = [];
+  private recentSearches: string[] = [];
 
   constructor(
     win: Window,
@@ -71,7 +90,9 @@ export class PaletteUI {
 
   show(): void {
     this.open = true;
+    this.root.classList.remove("is-animate");
     this.root.style.display = "block";
+    this.root.classList.add("is-animate");
     this.input.value = "";
     this.results = [];
     this.selectedIndex = 0;
@@ -117,7 +138,12 @@ export class PaletteUI {
       }
       if (event.key === "Enter") {
         event.preventDefault();
-        void this.activateSelection(event.metaKey || event.ctrlKey);
+        const intent: OpenIntent = event.shiftKey
+          ? "reveal"
+          : event.metaKey || event.ctrlKey
+            ? "alternate"
+            : "default";
+        void this.activateSelection(intent);
       }
     });
   }
@@ -141,7 +167,11 @@ export class PaletteUI {
           this.win,
           resultsLimit,
         )
-      : await this.searchService.search(this.currentQuery, resultsLimit);
+      : await this.searchService.search(
+          this.currentQuery,
+          this.win,
+          resultsLimit,
+        );
     if (token !== this.searchToken) {
       return;
     }
@@ -157,16 +187,25 @@ export class PaletteUI {
       return;
     }
     const maxIndex = this.results.length - 1;
-    this.selectedIndex = Math.max(
+    const nextIndex = Math.max(
       0,
       Math.min(maxIndex, this.selectedIndex + delta),
     );
-    this.renderResults();
+    if (nextIndex === this.selectedIndex) {
+      return;
+    }
+    this.selectedIndex = nextIndex;
+    this.updateSelectionState();
   }
 
-  private async activateSelection(alternate: boolean): Promise<void> {
+  private async activateSelection(intent: OpenIntent): Promise<void> {
     const result = this.results[this.selectedIndex];
     if (!result) {
+      return;
+    }
+    if (result.kind === "history") {
+      this.input.value = result.query;
+      await this.updateResults(result.query);
       return;
     }
     if (result.kind === "command") {
@@ -179,7 +218,12 @@ export class PaletteUI {
       }
       return;
     }
-    await this.actionHandler.openResult(result, alternate);
+    await this.actionHandler.openResult(result, intent);
+    this.pushRecentActivated(result.id);
+    if (intent !== "reveal") {
+      this.searchService.recordOpen(result.id);
+    }
+    this.pushRecentSearch(this.currentQuery);
     this.hide();
   }
 
@@ -218,29 +262,61 @@ export class PaletteUI {
       subtitle.textContent = result.subtitle;
       content.appendChild(title);
       content.appendChild(subtitle);
+      if (result.kind === "item" || result.kind === "attachment") {
+        const preview = this.buildPreviewText(result);
+        if (preview) {
+          const previewNode = this.createElement("div", "spotlight-preview");
+          previewNode.textContent = preview;
+          content.appendChild(previewNode);
+        }
+      }
       row.appendChild(icon);
       row.appendChild(content);
-      if (result.kind !== "command" && openTabItemIDs.has(result.id)) {
-        const tag = this.createElement("span", "spotlight-tag");
-        tag.textContent = "TAB";
-        row.appendChild(tag);
-      } else if (result.kind === "command" && result.shortcut) {
-        const tag = this.createElement("span", "spotlight-tag");
-        tag.textContent = result.shortcut;
-        row.appendChild(tag);
+      const isOpenTab =
+        (result.kind === "item" || result.kind === "attachment") &&
+        openTabItemIDs.has(result.id);
+      this.appendResultBadges(row, result, isOpenTab);
+      if (result.kind === "history") {
+        const deleteButton = this.createElement(
+          "button",
+          "spotlight-history-delete",
+        ) as HTMLButtonElement;
+        deleteButton.type = "button";
+        deleteButton.textContent = "x";
+        deleteButton.title = "Remove from history";
+        deleteButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          this.removeRecentSearch(result.query);
+          void this.updateResults(this.input.value);
+        });
+        row.appendChild(deleteButton);
       }
-      row.addEventListener("mousemove", () => {
+      row.addEventListener("mouseenter", () => {
+        if (this.selectedIndex === index) {
+          return;
+        }
         this.selectedIndex = index;
-        this.renderResults();
+        this.updateSelectionState();
       });
       row.addEventListener("click", () => {
-        void this.activateSelection(false);
+        void this.activateSelection("default");
       });
       this.list.appendChild(row);
     });
-    const selected = this.list.querySelector(".is-selected");
+    this.updateSelectionState();
+  }
+
+  private updateSelectionState(): void {
+    const rows = Array.from(
+      this.list.querySelectorAll(".spotlight-result"),
+    ) as HTMLElement[];
+    rows.forEach((row, index) => {
+      row.classList.toggle("is-selected", index === this.selectedIndex);
+    });
+    const selected = rows[this.selectedIndex];
     if (selected && "scrollIntoView" in selected) {
-      (selected as HTMLElement).scrollIntoView({ block: "nearest" });
+      selected.scrollIntoView({ block: "nearest" });
     }
   }
 
@@ -283,6 +359,10 @@ export class PaletteUI {
   padding: 12px;
   z-index: 999999;
   font: inherit;
+}
+
+#zotero-spotlight-root.is-animate {
+  animation: spotlight-pop-in 0.14s ease-out;
 }
 
 #zotero-spotlight-input {
@@ -345,6 +425,15 @@ export class PaletteUI {
   flex: 1 1 auto;
 }
 
+.spotlight-preview {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--quick-open-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .spotlight-icon {
   width: 16px;
   height: 16px;
@@ -357,9 +446,20 @@ export class PaletteUI {
 }
 
 .spotlight-command-icon {
+  width: 18px;
+  height: 18px;
   background-repeat: no-repeat;
   background-position: center;
-  background-size: 16px 16px;
+  background-size: 14px 14px;
+  background-color: var(--quick-open-command-icon-bg);
+  border: 1px solid var(--quick-open-command-icon-border);
+  border-radius: 4px;
+  color: var(--quick-open-command-icon-text);
+  text-align: center;
+  line-height: 16px;
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 1;
 }
 
 .spotlight-tag {
@@ -372,6 +472,36 @@ export class PaletteUI {
   border-radius: 999px;
   padding: 3px 6px;
   flex: 0 0 auto;
+}
+
+.spotlight-history-delete {
+  margin-left: 6px;
+  border: none;
+  background: transparent;
+  color: var(--quick-open-subtext);
+  font-size: 12px;
+  line-height: 1;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.spotlight-history-delete:hover {
+  background: var(--quick-open-tag-bg);
+  color: var(--quick-open-text);
+}
+
+@keyframes spotlight-pop-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 }
 
 .spotlight-empty {
@@ -400,6 +530,9 @@ export class PaletteUI {
   --quick-open-hover: #e7e2da;
   --quick-open-tag-text: #6f6a62;
   --quick-open-tag-bg: #ece8e2;
+  --quick-open-command-icon-bg: #f3efe8;
+  --quick-open-command-icon-border: #d5cec3;
+  --quick-open-command-icon-text: #3f3a32;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -415,6 +548,9 @@ export class PaletteUI {
     --quick-open-hover: #2f2c27;
     --quick-open-tag-text: #d7d2c8;
     --quick-open-tag-bg: #3a3530;
+    --quick-open-command-icon-bg: #d8d2c6;
+    --quick-open-command-icon-border: #b5aea2;
+    --quick-open-command-icon-text: #26231f;
   }
 }
 `;
@@ -431,35 +567,79 @@ export class PaletteUI {
     return element;
   }
 
-  private buildRecentResults(): QuickOpenResult[] {
+  private buildRecentResults(): Array<QuickOpenResult | HistoryResult> {
     this.updateRecentClosed();
     const activeID = this.getActiveTabItemID();
+    const seenIDs = new Set<number>();
+    if (typeof activeID === "number") {
+      seenIDs.add(activeID);
+    }
     const openEntries = this.getOpenTabEntries().filter(
       (entry) => entry.itemID !== activeID,
     );
     const resultsLimit = this.getResultsLimit();
-    const recentOpenLimit = Math.min(3, resultsLimit);
+    const historyLimit = Math.min(3, Math.floor(resultsLimit / 2));
+    const recentOpenLimit = Math.min(
+      3,
+      Math.max(0, resultsLimit - historyLimit),
+    );
     const recentClosedLimit = Math.max(
       0,
-      Math.min(2, resultsLimit - recentOpenLimit),
+      Math.min(2, resultsLimit - historyLimit - recentOpenLimit),
     );
+    const recentActivatedLimit = Math.max(
+      0,
+      resultsLimit - historyLimit - recentOpenLimit - recentClosedLimit,
+    );
+
+    const historyResults: HistoryResult[] = this.recentSearches
+      .slice(0, historyLimit)
+      .map((query, index) => ({
+        kind: "history",
+        query,
+        title: query,
+        subtitle: "Recent search",
+        score: historyLimit - index,
+      }));
+
     const recentOpen = openEntries.slice(-recentOpenLimit).reverse();
     const recentClosed = this.recentClosedAttachmentIDs
       .filter((id) => id !== activeID)
       .slice(0, recentClosedLimit)
       .map((id) => ({ kind: "attachment" as const, itemID: id }));
-    const entries = [...recentOpen, ...recentClosed];
+    const recentActivated = this.recentActivatedItemIDs
+      .filter((id) => !seenIDs.has(id))
+      .slice(0, recentActivatedLimit)
+      .map((id) => {
+        const item = Zotero.Items.get(id) as Zotero.Item;
+        if (!item) {
+          return null;
+        }
+        if (item.isAttachment()) {
+          return { kind: "attachment" as const, itemID: id };
+        }
+        return { kind: "item" as const, itemID: id };
+      })
+      .filter(
+        (entry): entry is { kind: "attachment" | "item"; itemID: number } =>
+          !!entry,
+      );
+
+    const entries = [...recentOpen, ...recentClosed, ...recentActivated];
     const results: QuickOpenResult[] = [];
     for (const entry of entries) {
+      seenIDs.add(entry.itemID);
       const result =
         entry.kind === "note"
           ? this.createNoteResult(entry.itemID)
-          : this.createAttachmentResult(entry.itemID);
+          : entry.kind === "attachment"
+            ? this.createAttachmentResult(entry.itemID)
+            : this.createItemResult(entry.itemID);
       if (result) {
         results.push(result);
       }
     }
-    return results;
+    return [...historyResults, ...results].slice(0, resultsLimit);
   }
 
   private updateRecentClosed(): void {
@@ -575,18 +755,43 @@ export class PaletteUI {
     const filename = (attachment as any).attachmentFilename as
       | string
       | undefined;
-    const title =
-      filename || attachment.getField("title") || attachment.getDisplayTitle();
+    const title = filename || getItemTitleSafe(attachment);
     const parent = this.getAttachmentParentItem(attachment);
-    const subtitle = parent
-      ? parent.getField("title") || parent.getDisplayTitle()
-      : "";
+    const subtitle = parent ? getItemTitleSafe(parent) : "";
+    const tags = parent ? getItemTagsSafe(parent, 3) : [];
+    const abstractSnippet = parent
+      ? getItemAbstractSnippetSafe(parent, 90)
+      : undefined;
+    const year = parent ? getItemYearSafe(parent) : undefined;
     return {
       id: attachmentID,
       kind: "attachment",
+      resultType: isPDFAttachment(attachment) ? "pdf" : "item",
       title: title || "Attachment",
       subtitle,
       score: 0,
+      year,
+      tags,
+      abstractSnippet,
+    };
+  }
+
+  private createItemResult(itemID: number): QuickOpenResult | null {
+    const item = Zotero.Items.get(itemID) as Zotero.Item;
+    if (!item || !item.isRegularItem()) {
+      return null;
+    }
+    return {
+      id: itemID,
+      kind: "item",
+      resultType: "item",
+      title: getItemTitleSafe(item) || "Item",
+      subtitle: getItemSubtitleSafe(item),
+      score: 0,
+      year: getItemYearSafe(item),
+      tags: getItemTagsSafe(item, 3),
+      authors: getItemAuthorsSafe(item),
+      abstractSnippet: getItemAbstractSnippetSafe(item, 90),
     };
   }
 
@@ -616,22 +821,42 @@ export class PaletteUI {
     const parent = parentID
       ? (Zotero.Items.get(parentID) as Zotero.Item)
       : null;
-    const subtitle = parent
-      ? parent.getField("title") || parent.getDisplayTitle()
-      : "Note";
+    const subtitle = parent ? getItemTitleSafe(parent) : "Note";
     return {
       id: noteID,
       kind: "item",
+      resultType: "note",
       title,
       subtitle,
       score: 0,
+      year: parent ? getItemYearSafe(parent) : undefined,
+      tags: getItemTagsSafe(note, 3),
+      authors: parent ? getItemAuthorsSafe(parent) : undefined,
+      abstractSnippet: parent
+        ? getItemAbstractSnippetSafe(parent, 90)
+        : undefined,
     };
+  }
+
+  private buildPreviewText(result: QuickOpenResult): string {
+    const leading = [result.authors, result.year ? String(result.year) : ""]
+      .filter(Boolean)
+      .join(" - ");
+    const tags = (result.tags || []).slice(0, 2).map((tag) => `#${tag}`);
+    const parts = [leading, ...tags, result.abstractSnippet || ""].filter(
+      Boolean,
+    );
+    return parts.join("  ");
   }
 
   private applyResultIcon(
     icon: HTMLElement,
-    result: QuickOpenResult | CommandResult,
+    result: QuickOpenResult | CommandResult | HistoryResult,
   ): void {
+    if (result.kind === "history") {
+      icon.textContent = "*";
+      return;
+    }
     if (result.kind === "command") {
       icon.classList.add("spotlight-command-icon");
       const commandIconURL = this.getCommandIconURL(result.icon);
@@ -793,5 +1018,80 @@ export class PaletteUI {
       return "chrome://zotero/skin/16/universal/library-collection.svg";
     }
     return null;
+  }
+
+  private appendResultBadges(
+    row: HTMLElement,
+    result: QuickOpenResult | CommandResult | HistoryResult,
+    isOpenTab: boolean,
+  ): void {
+    if (result.kind === "history") {
+      const historyTag = this.createElement("span", "spotlight-tag");
+      historyTag.textContent = "HISTORY";
+      row.appendChild(historyTag);
+      return;
+    }
+    if (result.kind === "command") {
+      if (result.shortcut) {
+        const shortcutTag = this.createElement("span", "spotlight-tag");
+        shortcutTag.textContent = result.shortcut;
+        row.appendChild(shortcutTag);
+      }
+      return;
+    }
+
+    const badges: string[] = [];
+    badges.push(this.getResultTypeBadge(result.resultType));
+    if (result.libraryKind === "group") {
+      badges.push("GROUP");
+    }
+    if (isOpenTab) {
+      badges.push("TAB");
+    }
+
+    badges.forEach((label) => {
+      const badge = this.createElement("span", "spotlight-tag");
+      badge.textContent = label;
+      row.appendChild(badge);
+    });
+  }
+
+  private getResultTypeBadge(type: QuickOpenResult["resultType"]): string {
+    if (type === "pdf") {
+      return "PDF";
+    }
+    if (type === "note") {
+      return "NOTE";
+    }
+    return "ITEM";
+  }
+
+  private pushRecentActivated(itemID: number): void {
+    if (!itemID || typeof itemID !== "number") {
+      return;
+    }
+    this.recentActivatedItemIDs = this.recentActivatedItemIDs.filter(
+      (id) => id !== itemID,
+    );
+    this.recentActivatedItemIDs.unshift(itemID);
+    this.recentActivatedItemIDs = this.recentActivatedItemIDs.slice(0, 20);
+  }
+
+  private pushRecentSearch(query: string): void {
+    const normalizedQuery = query.trim();
+    if (!normalizedQuery || this.displayMode !== "search") {
+      return;
+    }
+    this.recentSearches = this.recentSearches.filter(
+      (entry) => entry !== normalizedQuery,
+    );
+    this.recentSearches.unshift(normalizedQuery);
+    this.recentSearches = this.recentSearches.slice(0, 20);
+  }
+
+  private removeRecentSearch(query: string): void {
+    this.recentSearches = this.recentSearches.filter(
+      (entry) => entry !== query,
+    );
   }
 }
