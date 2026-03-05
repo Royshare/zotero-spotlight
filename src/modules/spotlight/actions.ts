@@ -24,9 +24,14 @@ export class ActionHandler {
     if (!attachment) {
       return;
     }
+    const mainWindow = Zotero.getMainWindow();
+    const pane = mainWindow?.ZoteroPane;
+    if (shouldUseExternalPdfHandler(attachment)) {
+      pane?.viewAttachment?.(attachmentID);
+      return;
+    }
     const existing = getExistingReader(attachmentID);
     if (existing) {
-      const mainWindow = Zotero.getMainWindow();
       if (existing.tabID && mainWindow?.Zotero_Tabs?.select) {
         mainWindow.Zotero_Tabs.select(existing.tabID);
       }
@@ -46,8 +51,6 @@ export class ActionHandler {
         );
       }
     }
-    const mainWindow = Zotero.getMainWindow();
-    const pane = mainWindow?.ZoteroPane;
     if (pane?.viewAttachment) {
       pane.viewAttachment(attachmentID);
     }
@@ -146,6 +149,14 @@ function isPdfAttachment(item: Zotero.Item): boolean {
   const contentType =
     candidate.attachmentContentType || candidate.attachmentMIMEType;
   return item.isAttachment() && contentType === "application/pdf";
+}
+
+function shouldUseExternalPdfHandler(item: Zotero.Item): boolean {
+  if (!isPdfAttachment(item)) {
+    return false;
+  }
+  const handler = String(Zotero.Prefs.get("fileHandler.pdf") || "").trim();
+  return handler.length > 0;
 }
 
 function getExistingReader(

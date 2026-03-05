@@ -312,6 +312,10 @@ export class CommandRegistry {
           if (!attachmentID) {
             return;
           }
+          if (shouldUseExternalPdfHandler()) {
+            pane.viewAttachment?.(attachmentID);
+            return;
+          }
           if (typeof (Zotero as any).Reader?.open === "function") {
             await (Zotero as any).Reader.open(attachmentID, {
               openInWindow: false,
@@ -470,6 +474,11 @@ function isPDFAttachment(item: Zotero.Item): boolean {
   const contentType =
     candidate.attachmentContentType || candidate.attachmentMIMEType || "";
   return String(contentType).toLowerCase().includes("pdf");
+}
+
+function shouldUseExternalPdfHandler(): boolean {
+  const handler = String(Zotero.Prefs.get("fileHandler.pdf") || "").trim();
+  return handler.length > 0;
 }
 
 function getActiveTabItemID(win: Window): number | null {
