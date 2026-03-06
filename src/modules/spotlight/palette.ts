@@ -48,6 +48,8 @@ export class PaletteUI {
   private recentClosedAttachmentIDs: number[] = [];
   private recentActivatedItemIDs: number[] = [];
   private recentSearches: string[] = [];
+  private _savedQuery = "";
+  private _savedScrollTop = 0;
   private _activeCollection: any = null;
   private _sectionCollapsed: Record<string, boolean> = {};
 
@@ -113,7 +115,8 @@ export class PaletteUI {
     if (this.root) {
       this.root.style.width = getWindowWidth() + "px";
     }
-    this.input.value = "";
+    const shouldRestore = !!(getPref as any)("restoreSearch") && this._savedQuery !== "";
+    this.input.value = shouldRestore ? this._savedQuery : "";
     this.results = [];
     this.selectedIndex = 0;
     // Detect active collection for folder-scoped search
@@ -141,12 +144,17 @@ export class PaletteUI {
       if (this.collectionBar) this.collectionBar.style.display = "none";
     }
     this.renderResults();
-    void this.updateResults("");
+    void this.updateResults(shouldRestore ? this._savedQuery : "").then(() => {
+      if (shouldRestore) { this.list.scrollTop = this._savedScrollTop; }
+    });
     this.input.focus();
+    if (shouldRestore) { this.input.select(); }
   }
 
   hide(): void {
     this.open = false;
+    this._savedQuery = this.input.value;
+    this._savedScrollTop = this.list.scrollTop;
     this.root.style.display = "none";
   }
 
@@ -197,6 +205,34 @@ export class PaletteUI {
     const parsedQuery = this.parseQuery(query);
     this.currentQuery = parsedQuery.query;
     const resultsLimit = this.getResultsLimit();
+      // >tabs command
+      if (parsedQuery.isCommandMode && (parsedQuery.query === "tabs" || parsedQuery.query === "tab")) {
+        const mainWin = Zotero.getMainWindow() as any;
+        const allTabs = mainWin?.Zotero_Tabs?._tabs ?? [];
+        const tabResults: QuickOpenResult[] = [];
+        for (const tab of allTabs) {
+          const itemID = tab?.data?.itemID;
+          if (!itemID) continue;
+          const item = Zotero.Items.get(itemID) as any;
+          if (!item) continue;
+          const parent = item.isAttachment?.() ? Zotero.Items.get(item.parentID) as any : item;
+          tabResults.push({
+            kind: item.isAttachment?.() ? "attachment" : "item",
+            id: itemID,
+            title: item.isAttachment?.() ? (parent?.getDisplayTitle?.() || (item as any).attachmentFilename || "PDF") : (item.getDisplayTitle?.() || "Untitled"),
+            subtitle: item.isAttachment?.() ? "PDF" : "Item",
+            resultType: item.isAttachment?.() ? "pdf" : "item",
+            libraryKind: "user",
+            score: 10,
+          });
+        }
+        this.results = tabResults;
+        this.sectionHeader = `Open Tabs (${tabResults.length})`;
+        this.displayMode = "search";
+        this.selectedIndex = 0;
+        this.renderResults();
+        return;
+      }
     if (!parsedQuery.isCommandMode && !this.currentQuery) {
       this.results = this.buildRecentResults();
       this.sectionHeader = "Recent";
@@ -619,6 +655,18 @@ export class PaletteUI {
   text-transform: uppercase;
   color: var(--quick-open-tag-text);
   background: var(--quick-open-tag-bg);
+  border-radius: 999px;
+  padding: 3px 6px;
+  flex: 0 0 auto;
+}
+
+.spotlight-tag-tab {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffffff;
+  background: #0078d4;
   border-radius: 999px;
   padding: 3px 6px;
   flex: 0 0 auto;
@@ -1229,7 +1277,8 @@ export class PaletteUI {
 
     badges.forEach((label) => {
       const badge = this.createElement("span", "spotlight-tag");
-      badge.textContent = label;
+      if (label === "TAB") badge.classList.add("spotlight-tag-tab");
+      if (label !== "TAB") badge.textContent = label;
       row.appendChild(badge);
     });
   }

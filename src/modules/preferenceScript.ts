@@ -53,6 +53,12 @@ function syncPrefUI() {
     const val = ( getPref as any)("searchAnnotations");
     annoCheckbox.checked = val === undefined || val === null ? true : !!val;
   }
+    const restoreCheckbox = doc.querySelector(
+      `#zotero-prefpane-${config.addonRef}-restore-search`,
+    ) as HTMLInputElement | null;
+    if (restoreCheckbox) {
+      restoreCheckbox.checked = !!(getPref as any)("restoreSearch");
+    }
 }
 
 function bindPrefEvents() {
@@ -94,6 +100,12 @@ function bindPrefEvents() {
   annoCheckbox?.addEventListener("change", () => {
     ( setPref as any)("searchAnnotations", annoCheckbox.checked);
   });
+    const restoreCheckboxBind = doc.querySelector(
+      `#zotero-prefpane-${config.addonRef}-restore-search`,
+    ) as HTMLInputElement | null;
+    restoreCheckboxBind?.addEventListener("change", () => {
+      (setPref as any)("restoreSearch", restoreCheckboxBind.checked);
+    });
   const resetButton = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-reset-defaults`,
   ) as HTMLButtonElement | null;
@@ -102,6 +114,7 @@ function bindPrefEvents() {
     ( setPref as any)("windowHeight", 400);
     ( setPref as any)("windowWidth", 560);
     ( setPref as any)("searchAnnotations", true);
+      (setPref as any)("restoreSearch", false);
     syncPrefUI();
   });
 }
