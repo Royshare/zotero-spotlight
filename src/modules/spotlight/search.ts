@@ -7,11 +7,12 @@ import {
   getItemYearSafe,
   isPDFAttachment,
 } from "./itemMetadata";
+import { getPref } from "../../utils/prefs";
 
-export type QuickOpenResult = ItemResult | AttachmentResult;
+export type QuickOpenResult = ItemResult | AttachmentResult | AnnotationResult;
 
-export type ResultKind = "item" | "attachment";
-export type ResultType = "item" | "note" | "pdf";
+export type ResultKind = "item" | "attachment" | "annotation";
+export type ResultType = "item" | "note" | "pdf" | "annotation";
 
 export interface BaseResult {
   id: number;
@@ -35,6 +36,16 @@ export interface AttachmentResult extends BaseResult {
   kind: "attachment";
 }
 
+export interface AnnotationResult extends BaseResult {
+  kind: "annotation";
+  annotationColor?: string;
+  attachmentID?: number;
+  attachmentKey?: string;
+  annoKey?: string;
+  pageLabel?: string;
+  pageIndex?: number;
+}
+
 type IndexedEntry = {
   id: number;
   kind: ResultKind;
@@ -48,6 +59,13 @@ type IndexedEntry = {
   libraryID: number;
   libraryKind: "user" | "group";
   searchText: string;
+  // annotation-specific
+  annotationColor?: string;
+  attachmentID?: number;
+  attachmentKey?: string;
+  annoKey?: string;
+  pageLabel?: string;
+  pageIndex?: number;
 };
 
 type ParsedQuery = {
@@ -84,14 +102,37 @@ export class SearchService {
     query: string,
     win: Window,
     limit = 20,
+    collectionFilter: any = null,
   ): Promise<QuickOpenResult[]> {
     const parsedQuery = parseStructuredQuery(query);
     const activeLibraryID = this.getActiveLibraryID(win);
     await this.ensureIndex();
+
+    // Build collection item ID set if filter is active
+    let collectionItemIDs: Set<number> | null = null;
+    if (collectionFilter) {
+      collectionItemIDs = new Set<number>();
+      const collectAllIDs = (col: any) => {
+        for (const id of (col.getChildItems?.(true) || [])) {
+          (collectionItemIDs as Set<number>).add(id);
+        }
+        for (const sub of (col.getChildCollections?.() || [])) {
+          collectAllIDs(sub);
+        }
+      };
+      collectAllIDs(collectionFilter);
+    }
+
     const results: QuickOpenResult[] = [];
     for (const entry of this.index) {
       if (!matchesFilters(entry, parsedQuery.filters)) {
         continue;
+      }
+      // Collection filter
+      if (collectionItemIDs !== null) {
+        const checkID =
+          entry.kind === "annotation" ? entry.attachmentID : entry.id;
+        if (!checkID || !collectionItemIDs.has(checkID)) continue;
       }
       const baseScore = parsedQuery.textQuery
         ? fuzzyScore(parsedQuery.textQuery, entry.searchText)
@@ -103,21 +144,64 @@ export class SearchService {
       const recencyBoost = this.getRecencyBoost(entry.id);
       const libraryBoost =
         activeLibraryID !== null && activeLibraryID === entry.libraryID ? 6 : 0;
-      results.push({
-        id: entry.id,
-        kind: entry.kind,
-        resultType: entry.resultType,
-        title: entry.title,
-        subtitle: entry.subtitle,
-        score: baseScore + frequencyBoost + recencyBoost + libraryBoost,
-        year: entry.year === null ? undefined : entry.year,
-        libraryKind: entry.libraryKind,
-        authors: entry.authors || undefined,
-        tags: entry.tags.length ? entry.tags : undefined,
-        abstractSnippet: entry.abstractSnippet || undefined,
-      } as QuickOpenResult);
+
+      if (entry.kind === "annotation") {
+        results.push({
+          id: entry.id,
+          kind: "annotation",
+          resultType: "annotation",
+          title: entry.title,
+          subtitle: entry.subtitle,
+          score: baseScore + frequencyBoost + recencyBoost + libraryBoost,
+          year: entry.year === null ? undefined : entry.year,
+          libraryKind: entry.libraryKind,
+          authors: entry.authors || undefined,
+          annotationColor: entry.annotationColor,
+          attachmentID: entry.attachmentID,
+          attachmentKey: entry.attachmentKey,
+          annoKey: entry.annoKey,
+          pageLabel: entry.pageLabel,
+          pageIndex: entry.pageIndex,
+        } as AnnotationResult);
+      } else {
+        results.push({
+          id: entry.id,
+          kind: entry.kind,
+          resultType: entry.resultType,
+          title: entry.title,
+          subtitle: entry.subtitle,
+          score: baseScore + frequencyBoost + recencyBoost + libraryBoost,
+          year: entry.year === null ? undefined : entry.year,
+          libraryKind: entry.libraryKind,
+          authors: entry.authors || undefined,
+          tags: entry.tags.length ? entry.tags : undefined,
+          abstractSnippet: entry.abstractSnippet || undefined,
+        } as QuickOpenResult);
+      }
     }
-    return results.sort((a, b) => b.score - a.score).slice(0, limit);
+
+    // Sort within each category, annotations always after items
+    const kindOrder = (r: QuickOpenResult) =>
+      r.kind === "annotation" ? 1 : 0;
+    const sorted = results.sort((a, b) => {
+      const kindDiff = kindOrder(a) - kindOrder(b);
+      if (kindDiff !== 0) return kindDiff;
+      return b.score - a.score;
+    });
+
+    const perCategoryLimit = Math.ceil(limit / 2);
+    const searchAnnotations =
+      ( getPref as any)("searchAnnotations") !== false &&
+      ( getPref as any)("searchAnnotations") !== null;
+    const itemResults = sorted
+      .filter((r) => r.kind !== "annotation")
+      .slice(0, perCategoryLimit);
+    const annoResults = searchAnnotations
+      ? sorted
+          .filter((r) => r.kind === "annotation")
+          .slice(0, perCategoryLimit)
+      : [];
+    return [...itemResults, ...annoResults];
   }
 
   recordOpen(itemID: number): void {
@@ -185,6 +269,7 @@ async function buildIndex(): Promise<IndexedEntry[]> {
   const libraries = Zotero.Libraries.getAll();
   const entries: IndexedEntry[] = [];
   const parentsWithAttachment = new Set<number>();
+
   for (const library of libraries) {
     const libraryKind =
       (library as any).libraryType === "group" ? "group" : "user";
@@ -285,6 +370,107 @@ async function buildIndex(): Promise<IndexedEntry[]> {
       }
     }
   }
+
+  // --- ANNOTATION INDEX ---
+  const searchAnnotations =
+    ( getPref as any)("searchAnnotations") !== false &&
+    ( getPref as any)("searchAnnotations") !== null;
+  if (searchAnnotations) {
+    for (const library of libraries) {
+      const libraryKind =
+        (library as any).libraryType === "group" ? "group" : "user";
+      try {
+        let annoRows: any[], attRows: any[], textRows: any[], keyRows: any[], annoKeyRows: any[];
+        await (Zotero.DB as any).executeTransaction(async () => {
+          annoRows = await (Zotero.DB as any).queryAsync(
+            `SELECT itemID AS aid, parentItemID AS pid, comment AS cmt, color AS col, pageLabel AS pl, position AS pos FROM itemAnnotations`,
+          );
+          if (!annoRows || !annoRows.length) return;
+          const pids = [...new Set(annoRows.map((r: any) => r.pid))].join(",");
+          const aids = annoRows.map((r: any) => r.aid).join(",");
+          attRows = await (Zotero.DB as any).queryAsync(
+            `SELECT itemID AS iid, parentItemID AS ppid FROM itemAttachments WHERE itemID IN (${pids})`,
+          );
+          keyRows = await (Zotero.DB as any).queryAsync(
+            `SELECT itemID AS iid, key AS kkey FROM items WHERE itemID IN (${pids})`,
+          );
+          annoKeyRows = await (Zotero.DB as any).queryAsync(
+            `SELECT itemID AS iid, key AS kkey FROM items WHERE itemID IN (${aids})`,
+          );
+          textRows = await (Zotero.DB as any).queryAsync(
+            `SELECT itemID AS tid, text AS xxt FROM itemAnnotations WHERE text IS NOT NULL AND text != ''`,
+          );
+        });
+
+        if (!annoRows! || !annoRows!.length) continue;
+
+        const textMap = new Map<number, string>();
+        if (textRows!) for (const r of textRows!) textMap.set(r.tid, r.xxt || "");
+        const keyMap = new Map<number, string>();
+        if (keyRows!) for (const r of keyRows!) keyMap.set(r.iid, r.kkey || "");
+        const annoKeyMap = new Map<number, string>();
+        if (annoKeyRows!) for (const r of annoKeyRows!) annoKeyMap.set(r.iid, r.kkey || "");
+        const attMap = new Map<number, { ppid: number; akey: string }>();
+        if (attRows!) for (const r of attRows!) attMap.set(r.iid, { ppid: r.ppid, akey: keyMap.get(r.iid) || "" });
+
+        for (const row of annoRows!) {
+          try {
+            const att = attMap.get(row.pid);
+            if (!att) continue;
+            const attachmentID = row.pid;
+            const parentItem = Zotero.Items.get(att.ppid) as Zotero.Item;
+            if (!parentItem) continue;
+            const annotationText = textMap.get(row.aid) || "";
+            const annotationComment = row.cmt || "";
+            if (!annotationText && !annotationComment) continue;
+            const parentTitle = getItemTitleSafe(parentItem) || "";
+            const parentAuthors = getItemAuthorsSafe(parentItem) || "";
+            let pageLabel = row.pl || "";
+            let pageIndex = 0;
+            if (row.pos) {
+              try {
+                const pos = JSON.parse(row.pos);
+                if (typeof pos.pageIndex === "number") pageIndex = pos.pageIndex;
+              } catch (_) {}
+            }
+            const title = annotationText
+              ? annotationText.slice(0, 120)
+              : annotationComment.slice(0, 120);
+            const subtitle = `${parentTitle}${pageLabel ? ` · p. ${pageLabel}` : ""}`;
+
+            entries.push({
+              id: row.aid,
+              kind: "annotation",
+              resultType: "annotation",
+              title,
+              subtitle,
+              authors: parentAuthors,
+              tags: [],
+              abstractSnippet: annotationComment.slice(0, 120),
+              year: getItemYearNumber(parentItem),
+              libraryID: library.libraryID,
+              libraryKind,
+              annotationColor: row.col || "#ffd400",
+              attachmentID,
+              attachmentKey: att.akey,
+              annoKey: annoKeyMap.get(row.aid) || "",
+              pageLabel,
+              pageIndex,
+              searchText: normalize(
+                `${annotationText} ${annotationComment} ${parentTitle} ${parentAuthors}`,
+              ),
+            });
+          } catch (err) {
+            ztoolkit.log("Spotlight skipped annotation", err);
+          }
+        }
+      } catch (err) {
+        ztoolkit.log("Spotlight annotation index error", err);
+      }
+    }
+  }
+  // --- END ANNOTATION INDEX ---
+
   return entries;
 }
 
@@ -506,8 +692,8 @@ function parseTypeFilter(rawValue: string): ResultType[] {
     .filter(Boolean);
   const parsed: ResultType[] = [];
   for (const entry of values) {
-    if (entry === "pdf" || entry === "note" || entry === "item") {
-      parsed.push(entry);
+    if (entry === "pdf" || entry === "note" || entry === "item" || entry === "annotation") {
+      parsed.push(entry as ResultType);
     }
   }
   return parsed;

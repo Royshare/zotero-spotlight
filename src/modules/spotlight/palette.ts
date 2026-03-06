@@ -1,7 +1,7 @@
 import type { ActionHandler, OpenIntent } from "./actions";
 import { CommandRegistry } from "./commands";
 import type { CommandResult } from "./commands";
-import type { QuickOpenResult } from "./search";
+import type { QuickOpenResult, AnnotationResult } from "./search";
 import type { SearchService } from "./search";
 import {
   getItemAbstractSnippetSafe,
@@ -30,6 +30,8 @@ export class PaletteUI {
   private root: HTMLDivElement;
   private input: HTMLInputElement;
   private list: HTMLDivElement;
+  private collectionBar: HTMLElement | null = null;
+  private collectionCheckbox: HTMLInputElement | null = null;
   private styleElement: HTMLStyleElement;
   private searchService: SearchService;
   private commandRegistry: CommandRegistry;
@@ -46,6 +48,8 @@ export class PaletteUI {
   private recentClosedAttachmentIDs: number[] = [];
   private recentActivatedItemIDs: number[] = [];
   private recentSearches: string[] = [];
+  private _activeCollection: any = null;
+  private _sectionCollapsed: Record<string, boolean> = {};
 
   constructor(
     win: Window,
@@ -75,6 +79,15 @@ export class PaletteUI {
     this.list = this.root.querySelector(
       "#zotero-spotlight-list",
     ) as HTMLDivElement;
+    this.collectionBar = this.root.querySelector(
+      "#zotero-spotlight-collection-bar",
+    );
+    this.collectionCheckbox = this.root.querySelector(
+      "#zotero-spotlight-collection-filter",
+    ) as HTMLInputElement | null;
+    this.collectionCheckbox?.addEventListener("change", () => {
+      void this.updateResults(this.input.value);
+    });
     this.bindEvents();
     this.doc.addEventListener("mousedown", this.outsideClickHandler, true);
     this.hide();
@@ -93,9 +106,40 @@ export class PaletteUI {
     this.root.classList.remove("is-animate");
     this.root.style.display = "block";
     this.root.classList.add("is-animate");
+    // Apply dimensions from preferences on every open
+    if (this.list) {
+      this.list.style.maxHeight = getWindowHeight() + "px";
+    }
+    if (this.root) {
+      this.root.style.width = getWindowWidth() + "px";
+    }
     this.input.value = "";
     this.results = [];
     this.selectedIndex = 0;
+    // Detect active collection for folder-scoped search
+    this._activeCollection = null;
+    try {
+      const pane =
+        (this.win as any).ZoteroPane ||
+        Zotero.getMainWindow()?.ZoteroPane ||
+        (Zotero.getActiveZoteroPane?.() as any);
+      const col = pane?.getSelectedCollection?.();
+      if (col) {
+        this._activeCollection = col;
+        const label = this.root.querySelector(
+          "#zotero-spotlight-collection-label",
+        );
+        if (label) {
+          label.textContent = `Search in "${col.name}" only (including subcollections)`;
+        }
+        if (this.collectionBar) this.collectionBar.style.display = "flex";
+      } else {
+        if (this.collectionBar) this.collectionBar.style.display = "none";
+        if (this.collectionCheckbox) this.collectionCheckbox.checked = false;
+      }
+    } catch (_) {
+      if (this.collectionBar) this.collectionBar.style.display = "none";
+    }
     this.renderResults();
     void this.updateResults("");
     this.input.focus();
@@ -161,6 +205,10 @@ export class PaletteUI {
       this.renderResults();
       return;
     }
+    const collectionFilter =
+      this.collectionCheckbox?.checked && this._activeCollection
+        ? this._activeCollection
+        : null;
     const results = parsedQuery.isCommandMode
       ? await this.commandRegistry.search(
           this.currentQuery,
@@ -170,7 +218,8 @@ export class PaletteUI {
       : await this.searchService.search(
           this.currentQuery,
           this.win,
-          resultsLimit,
+          resultsLimit * 2,
+          collectionFilter,
         );
     if (token !== this.searchToken) {
       return;
@@ -218,6 +267,11 @@ export class PaletteUI {
       }
       return;
     }
+    if (result.kind === "annotation") {
+      await this.openAnnotation(result as AnnotationResult, intent);
+      this.hide();
+      return;
+    }
     await this.actionHandler.openResult(result, intent);
     this.pushRecentActivated(result.id);
     if (intent !== "reveal") {
@@ -225,6 +279,24 @@ export class PaletteUI {
     }
     this.pushRecentSearch(this.currentQuery);
     this.hide();
+  }
+
+  private async openAnnotation(
+    result: AnnotationResult,
+    alternate: OpenIntent,
+  ): Promise<void> {
+    const attachmentID = result.attachmentID;
+    if (typeof attachmentID !== "number") return;
+    await (Zotero as any).Reader.open(attachmentID, {
+      openInWindow: alternate === "alternate",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const reader = (Zotero as any).Reader._readers?.find(
+      (r: any) => r._item?.id === attachmentID,
+    );
+    if (reader && result.annoKey) {
+      await reader.navigate({ annotationID: result.annoKey });
+    }
   }
 
   private renderResults(): void {
@@ -248,7 +320,38 @@ export class PaletteUI {
       this.list.appendChild(empty);
       return;
     }
+
+    // Category counts
+    const itemCount = this.results.filter((r) => r.kind !== "annotation").length;
+    const annoCount = this.results.filter((r) => r.kind === "annotation").length;
+    let lastSectionKind: string | null = null;
+
     this.results.forEach((result, index) => {
+      // Insert section header when category changes
+      const sectionKind = result.kind === "annotation" ? "annotation" : "item";
+      if (sectionKind !== lastSectionKind && this.displayMode === "search") {
+        const count = sectionKind === "annotation" ? annoCount : itemCount;
+        const label = sectionKind === "annotation" ? "Annotations" : "Items";
+        const isCollapsed = this._sectionCollapsed[sectionKind] || false;
+        const header = this.createElement(
+          "div",
+          "spotlight-section spotlight-section-toggle",
+        );
+        (header as HTMLElement).style.cursor = "pointer";
+        (header as HTMLElement).style.userSelect = "none";
+        header.textContent = `${label} (${count}) ${isCollapsed ? "▸" : "▾"}`;
+        header.addEventListener("click", () => {
+          this._sectionCollapsed[sectionKind] =
+            !this._sectionCollapsed[sectionKind];
+          this.renderResults();
+        });
+        this.list.appendChild(header);
+        lastSectionKind = sectionKind;
+      }
+
+      // Skip collapsed section items
+      if (this._sectionCollapsed[sectionKind]) return;
+
       const row = this.createElement("div", "spotlight-result");
       if (index === this.selectedIndex) {
         row.classList.add("is-selected");
@@ -287,7 +390,7 @@ export class PaletteUI {
         deleteButton.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();
-          this.removeRecentSearch(result.query);
+          this.removeRecentSearch((result as HistoryResult).query);
           void this.updateResults(this.input.value);
         });
         row.appendChild(deleteButton);
@@ -330,9 +433,38 @@ export class PaletteUI {
     input.id = "zotero-spotlight-input";
     input.type = "text";
     input.placeholder = "Spotlight...";
+
+    // Collection filter bar
+    const collectionBar = this.createElement(
+      "div",
+      "spotlight-collection-bar",
+    ) as HTMLElement;
+    collectionBar.id = "zotero-spotlight-collection-bar";
+    const collectionCheckbox = this.doc.createElementNS(
+      HTML_NS,
+      "input",
+    ) as HTMLInputElement;
+    collectionCheckbox.type = "checkbox";
+    collectionCheckbox.id = "zotero-spotlight-collection-filter";
+    collectionCheckbox.style.margin = "0";
+    const collectionLabel = this.doc.createElementNS(
+      HTML_NS,
+      "label",
+    ) as HTMLElement;
+    collectionLabel.setAttribute(
+      "for",
+      "zotero-spotlight-collection-filter",
+    );
+    collectionLabel.id = "zotero-spotlight-collection-label";
+    collectionLabel.textContent = "Search in this folder only";
+    collectionBar.appendChild(collectionCheckbox);
+    collectionBar.appendChild(collectionLabel);
+    collectionBar.style.display = "none";
+
     const list = this.createElement("div", "spotlight-list") as HTMLDivElement;
     list.id = "zotero-spotlight-list";
     root.appendChild(input);
+    root.appendChild(collectionBar);
     root.appendChild(list);
     this.doc.documentElement?.appendChild(root);
     return root;
@@ -382,14 +514,32 @@ export class PaletteUI {
   box-shadow: 0 0 0 2px var(--quick-open-focus-ring);
 }
 
+.spotlight-collection-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 4px 6px;
+  background: var(--quick-open-tag-bg);
+  border-radius: 5px;
+  font-size: 11px;
+  color: var(--quick-open-subtext);
+}
+
+.spotlight-collection-bar label {
+  cursor: pointer;
+  user-select: none;
+}
+
 #zotero-spotlight-list {
   margin-top: 10px;
   max-height: 280px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .spotlight-result {
-  padding: 8px 10px;
+  padding: 8px 26px 8px 10px;
   border-radius: 6px;
   cursor: pointer;
   display: flex;
@@ -518,6 +668,17 @@ export class PaletteUI {
   color: var(--quick-open-muted);
 }
 
+.spotlight-section + .spotlight-section,
+.spotlight-result + .spotlight-section,
+.spotlight-section-toggle + .spotlight-section,
+.spotlight-result + .spotlight-section-toggle {
+  margin-top: 8px;
+}
+
+.spotlight-section-toggle:hover {
+  color: var(--quick-open-text);
+}
+
 #zotero-spotlight-root {
   --quick-open-bg: #f6f5f2;
   --quick-open-border: #c9c5bf;
@@ -595,7 +756,7 @@ export class PaletteUI {
     const historyResults: HistoryResult[] = this.recentSearches
       .slice(0, historyLimit)
       .map((query, index) => ({
-        kind: "history",
+        kind: "history" as const,
         query,
         title: query,
         subtitle: "Recent search",
@@ -630,7 +791,7 @@ export class PaletteUI {
     for (const entry of entries) {
       seenIDs.add(entry.itemID);
       const result =
-        entry.kind === "note"
+        (entry as any).kind === "note"
           ? this.createNoteResult(entry.itemID)
           : entry.kind === "attachment"
             ? this.createAttachmentResult(entry.itemID)
@@ -859,7 +1020,7 @@ export class PaletteUI {
     }
     if (result.kind === "command") {
       icon.classList.add("spotlight-command-icon");
-      const commandIconURL = this.getCommandIconURL(result.icon);
+      const commandIconURL = this.getCommandIconURL((result as CommandResult).icon);
       if (commandIconURL) {
         icon.style.backgroundImage = `url("${commandIconURL}")`;
       } else {
@@ -867,14 +1028,25 @@ export class PaletteUI {
       }
       return;
     }
+    if (result.kind === "annotation") {
+      const annoResult = result as AnnotationResult;
+      icon.textContent = "✏";
+      icon.style.fontSize = "13px";
+      icon.style.textAlign = "center";
+      icon.style.lineHeight = "16px";
+      if (annoResult.annotationColor) {
+        icon.style.color = annoResult.annotationColor;
+      }
+      return;
+    }
     const item = Zotero.Items.get(result.id) as Zotero.Item;
-    const itemTypeIcon = this.getResultItemTypeIcon(item, result);
+    const itemTypeIcon = this.getResultItemTypeIcon(item, result as any);
     if (itemTypeIcon) {
       icon.classList.add("icon", "icon-css", "icon-item-type");
       icon.setAttribute("data-item-type", itemTypeIcon);
       return;
     }
-    const iconURL = this.getResultIconURL(item, result);
+    const iconURL = this.getResultIconURL(item, result as any);
     if (iconURL) {
       icon.style.backgroundImage = `url("${iconURL.replace(/"/g, '\\"')}")`;
     }
@@ -984,7 +1156,7 @@ export class PaletteUI {
     if (Number.isNaN(raw)) {
       return 20;
     }
-    return Math.min(40, Math.max(5, raw));
+    return Math.min(100, Math.max(5, raw));
   }
 
   private parseQuery(rawQuery: string): {
@@ -1032,17 +1204,23 @@ export class PaletteUI {
       return;
     }
     if (result.kind === "command") {
-      if (result.shortcut) {
+      if ((result as CommandResult).shortcut) {
         const shortcutTag = this.createElement("span", "spotlight-tag");
-        shortcutTag.textContent = result.shortcut;
+        shortcutTag.textContent = (result as CommandResult).shortcut!;
         row.appendChild(shortcutTag);
       }
       return;
     }
+    if (result.kind === "annotation") {
+      const badge = this.createElement("span", "spotlight-tag");
+      badge.textContent = "ANNO";
+      row.appendChild(badge);
+      return;
+    }
 
     const badges: string[] = [];
-    badges.push(this.getResultTypeBadge(result.resultType));
-    if (result.libraryKind === "group") {
+    badges.push(this.getResultTypeBadge((result as QuickOpenResult).resultType));
+    if ((result as QuickOpenResult).libraryKind === "group") {
       badges.push("GROUP");
     }
     if (isOpenTab) {
@@ -1062,6 +1240,9 @@ export class PaletteUI {
     }
     if (type === "note") {
       return "NOTE";
+    }
+    if (type === "annotation") {
+      return "ANNO";
     }
     return "ITEM";
   }
@@ -1094,4 +1275,16 @@ export class PaletteUI {
       (entry) => entry !== query,
     );
   }
+}
+
+function getWindowHeight(): number {
+  const raw = Number(( getPref as any)("windowHeight"));
+  if (Number.isNaN(raw) || raw <= 0) return 400;
+  return Math.min(800, Math.max(200, raw));
+}
+
+function getWindowWidth(): number {
+  const raw = Number(( getPref as any)("windowWidth"));
+  if (Number.isNaN(raw) || raw <= 0) return 560;
+  return Math.min(1200, Math.max(300, raw));
 }
