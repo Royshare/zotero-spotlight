@@ -84,9 +84,25 @@ Zotero Spotlight aims to become a **universal command surface inside Zotero** �
 - [x] Rich preview rows (authors, year, tags, abstract snippet)
 - [x] Subtle animations with minimal distraction
 
-### Phase 6 - Integration with Popular Zotero Extensions
+### Phase 6 — Right-Side Preview Panel
 
-- [ ] Support for popular Zotero extensions (e.g. Better BibTeX, Zotero PDF Reader)
+- [x] Add a right-side preview panel for the currently selected result
+- [x] Show enough context to make Spotlight feel faster and smarter during review
+
+### Phase 7 — Command Workflows
+
+- [ ] Expand command mode into reusable workflows for common research tasks
+- [ ] Examples: `>literature note`, `>extract highlights`
+
+### Phase 8 — Annotation Search Improvements
+
+- [ ] Improve annotation search relevance, matching, and navigation
+- [ ] Optimize for annotation-heavy research workflows
+
+### Phase 9 — Command API for Other Plugins
+
+- [ ] Expose a command API so other Zotero plugins can register Spotlight actions
+- [ ] Grow Spotlight into a shared command surface for the wider plugin ecosystem
 
 ---
 
