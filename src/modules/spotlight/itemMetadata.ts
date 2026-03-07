@@ -79,6 +79,27 @@ export function getItemAbstractSnippetSafe(
     : normalized;
 }
 
+export function getItemNoteSnippetSafe(
+  item: Zotero.Item,
+  maxLength = 240,
+): string {
+  try {
+    const note = ((item as any).getNote?.() as string | undefined) || "";
+    const normalized = normalizeWhitespace(stripHTML(note));
+    if (!normalized) {
+      return "";
+    }
+    return normalized.length > maxLength
+      ? `${normalized.slice(0, maxLength - 3).trimEnd()}...`
+      : normalized;
+  } catch (error) {
+    if (isUnloadedDataError(error)) {
+      return "";
+    }
+    throw error;
+  }
+}
+
 export function isPDFAttachment(item: Zotero.Item): boolean {
   const candidate = item as any;
   if (typeof candidate.isPDFAttachment === "function") {

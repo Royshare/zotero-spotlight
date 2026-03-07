@@ -3,6 +3,15 @@ import type { QuickOpenResult } from "./search";
 export type OpenIntent = "default" | "alternate" | "reveal";
 
 export class ActionHandler {
+  async focusItemInLibrary(itemID: number): Promise<void> {
+    const mainWindow = Zotero.getMainWindow();
+    mainWindow?.Zotero_Tabs?.select?.("zotero-pane");
+    const pane = mainWindow?.ZoteroPane;
+    if (pane?.selectItem) {
+      await pane.selectItem(itemID);
+    }
+  }
+
   async openResult(
     result: QuickOpenResult,
     intent: OpenIntent = "default",
@@ -24,6 +33,23 @@ export class ActionHandler {
     if (!attachment) {
       return;
     }
+    if (
+      alternate &&
+      isPdfAttachment(attachment) &&
+      typeof (Zotero as any).FileHandlers?.open === "function"
+    ) {
+      try {
+        await (Zotero as any).FileHandlers.open(attachment, {
+          openInWindow: true,
+        });
+        return;
+      } catch (error) {
+        ztoolkit.log(
+          "FileHandlers.open failed, falling back to Reader.open",
+          error,
+        );
+      }
+    }
     const mainWindow = Zotero.getMainWindow();
     const pane = mainWindow?.ZoteroPane;
     if (shouldUseExternalPdfHandler(attachment)) {
@@ -31,7 +57,7 @@ export class ActionHandler {
       return;
     }
     const existing = getExistingReader(attachmentID);
-    if (existing) {
+    if (existing && !alternate) {
       if (existing.tabID && mainWindow?.Zotero_Tabs?.select) {
         mainWindow.Zotero_Tabs.select(existing.tabID);
       }
@@ -42,6 +68,7 @@ export class ActionHandler {
       try {
         await (Zotero as any).Reader.open(attachmentID, {
           openInWindow: alternate,
+          allowDuplicate: alternate,
         });
         return;
       } catch (error) {
@@ -56,14 +83,45 @@ export class ActionHandler {
     }
   }
 
+  async revealAttachmentFile(attachmentID: number): Promise<void> {
+    const attachment = Zotero.Items.get(attachmentID) as Zotero.Item;
+    if (!attachment || !attachment.isAttachment()) {
+      return;
+    }
+    const filePath =
+      typeof (attachment as any).getFilePathAsync === "function"
+        ? await (attachment as any).getFilePathAsync()
+        : (attachment as any).getFilePath?.();
+    if (!filePath || typeof filePath !== "string") {
+      return;
+    }
+    await Zotero.File.reveal(filePath);
+  }
+
   async openItem(itemID: number, alternate = false): Promise<void> {
     const mainWindow = Zotero.getMainWindow();
-    if (mainWindow?.Zotero_Tabs?.select) {
+    if (!alternate && mainWindow?.Zotero_Tabs?.select) {
       mainWindow.Zotero_Tabs.select("zotero-pane");
     }
     const pane = mainWindow?.ZoteroPane;
     const item = Zotero.Items.get(itemID) as Zotero.Item;
     if (item?.isNote && item.isNote()) {
+      if (alternate) {
+        try {
+          if (typeof (item as any).loadDataType === "function") {
+            await (item as any).loadDataType("note");
+          }
+          const notes = (Zotero as any).Notes;
+          if (notes?.open) {
+            await notes.open(itemID, null, { openInWindow: true });
+            return;
+          }
+        } catch (error) {
+          ztoolkit.log("Failed to open note window", error);
+        }
+        pane?.openNoteWindow?.(itemID);
+        return;
+      }
       const tabs = mainWindow?.Zotero_Tabs as
         | _ZoteroTypes.Zotero_Tabs
         | undefined;
@@ -98,12 +156,7 @@ export class ActionHandler {
   }
 
   private async revealInLibrary(itemID: number): Promise<void> {
-    const mainWindow = Zotero.getMainWindow();
-    mainWindow?.Zotero_Tabs?.select?.("zotero-pane");
-    const pane = mainWindow?.ZoteroPane;
-    if (pane?.selectItem) {
-      await pane.selectItem(itemID);
-    }
+    await this.focusItemInLibrary(itemID);
   }
 
   private async getPrimaryAttachmentID(itemID: number): Promise<number | null> {

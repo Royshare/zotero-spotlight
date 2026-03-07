@@ -6,6 +6,7 @@ import type { SearchService } from "./search";
 import {
   getItemAbstractSnippetSafe,
   getItemAuthorsSafe,
+  getItemNoteSnippetSafe,
   getItemSubtitleSafe,
   getItemTagsSafe,
   getItemTitleSafe,
@@ -24,12 +25,27 @@ type HistoryResult = {
   score: number;
 };
 
+type PanelAction = {
+  id: string;
+  label: string;
+  icon?: {
+    text?: string;
+    url?: string;
+    itemType?: string;
+  };
+  hint?: string;
+  run: () => Promise<void>;
+};
+
 export class PaletteUI {
   private win: Window;
   private doc: Document;
   private root: HTMLDivElement;
   private input: HTMLInputElement;
+  private body: HTMLDivElement;
+  private previewModeHeader: HTMLDivElement;
   private list: HTMLDivElement;
+  private previewPanel: HTMLDivElement;
   private collectionBar: HTMLElement | null = null;
   private collectionCheckbox: HTMLInputElement | null = null;
   private styleElement: HTMLStyleElement;
@@ -38,9 +54,12 @@ export class PaletteUI {
   private actionHandler: ActionHandler;
   private results: Array<QuickOpenResult | CommandResult | HistoryResult> = [];
   private selectedIndex = 0;
+  private panelMode: "preview" | "actions" = "preview";
+  private selectedActionIndex = 0;
   private open = false;
   private searchToken = 0;
   private outsideClickHandler: (event: MouseEvent) => void;
+  private keydownHandler: (event: KeyboardEvent) => void;
   private currentQuery = "";
   private sectionHeader = "";
   private displayMode: "recent" | "search" | "command" = "recent";
@@ -73,13 +92,23 @@ export class PaletteUI {
       }
       this.hide();
     };
+    this.keydownHandler = (event: KeyboardEvent) => {
+      this.handleKeydown(event);
+    };
     this.styleElement = this.createStyleElement();
     this.root = this.createRoot();
     this.input = this.root.querySelector(
       "#zotero-spotlight-input",
     ) as HTMLInputElement;
+    this.body = this.root.querySelector(".spotlight-body") as HTMLDivElement;
+    this.previewModeHeader = this.root.querySelector(
+      "#zotero-spotlight-preview-mode-header",
+    ) as HTMLDivElement;
     this.list = this.root.querySelector(
       "#zotero-spotlight-list",
+    ) as HTMLDivElement;
+    this.previewPanel = this.root.querySelector(
+      "#zotero-spotlight-preview-panel",
     ) as HTMLDivElement;
     this.collectionBar = this.root.querySelector(
       "#zotero-spotlight-collection-bar",
@@ -92,6 +121,7 @@ export class PaletteUI {
     });
     this.bindEvents();
     this.doc.addEventListener("mousedown", this.outsideClickHandler, true);
+    this.doc.addEventListener("keydown", this.keydownHandler, true);
     this.hide();
   }
 
@@ -112,6 +142,9 @@ export class PaletteUI {
     if (this.list) {
       this.list.style.maxHeight = getWindowHeight() + "px";
     }
+    if (this.previewPanel) {
+      this.previewPanel.style.maxHeight = getWindowHeight() + "px";
+    }
     if (this.root) {
       this.root.style.width = getWindowWidth() + "px";
     }
@@ -120,6 +153,8 @@ export class PaletteUI {
     this.input.value = shouldRestore ? this._savedQuery : "";
     this.results = [];
     this.selectedIndex = 0;
+    this.panelMode = "preview";
+    this.selectedActionIndex = 0;
     // Detect active collection for folder-scoped search
     this._activeCollection = null;
     try {
@@ -154,6 +189,7 @@ export class PaletteUI {
     if (shouldRestore) {
       this.input.select();
     }
+    this.updateBodyMode();
   }
 
   hide(): void {
@@ -161,10 +197,12 @@ export class PaletteUI {
     this._savedQuery = this.input.value;
     this._savedScrollTop = this.list.scrollTop;
     this.root.style.display = "none";
+    this.updateBodyMode();
   }
 
   destroy(): void {
     this.doc.removeEventListener("mousedown", this.outsideClickHandler, true);
+    this.doc.removeEventListener("keydown", this.keydownHandler, true);
     this.searchService.destroy();
     this.root.remove();
     this.styleElement.remove();
@@ -174,35 +212,64 @@ export class PaletteUI {
     this.input.addEventListener("input", () => {
       void this.updateResults(this.input.value);
     });
-    this.input.addEventListener("keydown", (event: KeyboardEvent) => {
-      if (!this.open) {
+  }
+
+  private handleKeydown(event: KeyboardEvent): void {
+    if (!this.open) {
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (this.panelMode === "actions") {
+        this.closeActionsPanel();
         return;
       }
-      if (event.key === "Escape") {
+      this.hide();
+      return;
+    }
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      this.openActionsPanel();
+      return;
+    }
+    if (event.key === "ArrowLeft") {
+      if (this.panelMode === "actions") {
         event.preventDefault();
-        this.hide();
-        return;
+        this.closeActionsPanel();
       }
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
+      return;
+    }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (this.panelMode === "actions") {
+        this.moveActionSelection(1);
+      } else {
         this.moveSelection(1);
-        return;
       }
-      if (event.key === "ArrowUp") {
-        event.preventDefault();
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      if (this.panelMode === "actions") {
+        this.moveActionSelection(-1);
+      } else {
         this.moveSelection(-1);
+      }
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (this.panelMode === "actions") {
+        void this.activateSelectedPanelAction();
         return;
       }
-      if (event.key === "Enter") {
-        event.preventDefault();
-        const intent: OpenIntent = event.shiftKey
-          ? "reveal"
-          : event.metaKey || event.ctrlKey
-            ? "alternate"
-            : "default";
-        void this.activateSelection(intent);
-      }
-    });
+      const intent: OpenIntent = event.shiftKey
+        ? "reveal"
+        : event.metaKey || event.ctrlKey
+          ? "alternate"
+          : "default";
+      void this.activateSelection(intent);
+    }
   }
 
   private async updateResults(query: string): Promise<void> {
@@ -275,6 +342,9 @@ export class PaletteUI {
       return;
     }
     this.results = results;
+    this.panelMode = "preview";
+    this.selectedActionIndex = 0;
+    this.updateBodyMode();
     this.sectionHeader = parsedQuery.isCommandMode ? "Commands" : "Results";
     this.displayMode = parsedQuery.isCommandMode ? "command" : "search";
     this.selectedIndex = 0;
@@ -294,7 +364,54 @@ export class PaletteUI {
       return;
     }
     this.selectedIndex = nextIndex;
+    this.selectedActionIndex = 0;
     this.updateSelectionState();
+  }
+
+  private moveActionSelection(delta: number): void {
+    const actions = this.getPanelActions();
+    if (!actions.length) {
+      return;
+    }
+    const maxIndex = actions.length - 1;
+    this.selectedActionIndex = Math.max(
+      0,
+      Math.min(maxIndex, this.selectedActionIndex + delta),
+    );
+    this.renderPreview();
+  }
+
+  private openActionsPanel(): void {
+    if (!this.results.length) {
+      return;
+    }
+    const actions = this.getPanelActions();
+    if (!actions.length) {
+      return;
+    }
+    this.panelMode = "actions";
+    this.selectedActionIndex = Math.max(
+      0,
+      Math.min(actions.length - 1, this.selectedActionIndex),
+    );
+    this.updateBodyMode();
+    this.renderPreview();
+  }
+
+  private closeActionsPanel(): void {
+    this.panelMode = "preview";
+    this.selectedActionIndex = 0;
+    this.updateBodyMode();
+    this.renderPreview();
+  }
+
+  private async activateSelectedPanelAction(): Promise<void> {
+    const actions = this.getPanelActions();
+    const action = actions[this.selectedActionIndex];
+    if (!action) {
+      return;
+    }
+    await action.run();
   }
 
   private async activateSelection(intent: OpenIntent): Promise<void> {
@@ -335,12 +452,51 @@ export class PaletteUI {
     result: AnnotationResult,
     alternate: OpenIntent,
   ): Promise<void> {
+    if (alternate === "reveal") {
+      const attachmentID = result.attachmentID;
+      if (typeof attachmentID === "number") {
+        await this.actionHandler.openAttachment(attachmentID, false);
+        await this.actionHandler.openResult(
+          {
+            id: attachmentID,
+            kind: "attachment",
+            resultType: "pdf",
+            title: result.subtitle || "PDF",
+            subtitle: "PDF",
+            score: result.score,
+          },
+          "reveal",
+        );
+      }
+      return;
+    }
     const attachmentID = result.attachmentID;
     if (typeof attachmentID !== "number") return;
-    await (Zotero as any).Reader.open(attachmentID, {
-      openInWindow: alternate === "alternate",
-    });
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    let openedWithFileHandlers = false;
+    if (
+      alternate === "alternate" &&
+      typeof (Zotero as any).FileHandlers?.open === "function"
+    ) {
+      const attachment = Zotero.Items.get(attachmentID) as Zotero.Item;
+      if (attachment) {
+        try {
+          await (Zotero as any).FileHandlers.open(attachment, {
+            openInWindow: true,
+          });
+          openedWithFileHandlers = true;
+          await new Promise((resolve) => setTimeout(resolve, 600));
+        } catch (error) {
+          ztoolkit.log("FileHandlers.open failed for annotation result", error);
+        }
+      }
+    }
+    if (!openedWithFileHandlers) {
+      await (Zotero as any).Reader.open(attachmentID, {
+        openInWindow: alternate === "alternate",
+        allowDuplicate: alternate === "alternate",
+      });
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    }
     const reader = (Zotero as any).Reader._readers?.find(
       (r: any) => r._item?.id === attachmentID,
     );
@@ -368,6 +524,7 @@ export class PaletteUI {
             ? "No commands"
             : "No results";
       this.list.appendChild(empty);
+      this.renderPreview();
       return;
     }
 
@@ -407,6 +564,7 @@ export class PaletteUI {
       if (this._sectionCollapsed[sectionKind]) return;
 
       const row = this.createElement("div", "spotlight-result");
+      row.dataset.resultIndex = String(index);
       if (index === this.selectedIndex) {
         row.classList.add("is-selected");
       }
@@ -454,6 +612,7 @@ export class PaletteUI {
           return;
         }
         this.selectedIndex = index;
+        this.input.focus();
         this.updateSelectionState();
       });
       row.addEventListener("click", () => {
@@ -468,13 +627,30 @@ export class PaletteUI {
     const rows = Array.from(
       this.list.querySelectorAll(".spotlight-result"),
     ) as HTMLElement[];
-    rows.forEach((row, index) => {
-      row.classList.toggle("is-selected", index === this.selectedIndex);
+    rows.forEach((row) => {
+      row.classList.toggle(
+        "is-selected",
+        Number(row.dataset.resultIndex) === this.selectedIndex,
+      );
     });
-    const selected = rows[this.selectedIndex];
+    const selected = rows.find(
+      (row) => Number(row.dataset.resultIndex) === this.selectedIndex,
+    );
     if (selected && "scrollIntoView" in selected) {
       selected.scrollIntoView({ block: "nearest" });
     }
+    const actions = this.getPanelActions();
+    if (!actions.length) {
+      this.panelMode = "preview";
+      this.selectedActionIndex = 0;
+    } else if (this.panelMode === "actions") {
+      this.selectedActionIndex = Math.min(
+        this.selectedActionIndex,
+        actions.length - 1,
+      );
+    }
+    this.updateBodyMode();
+    this.renderPreview();
   }
 
   private createRoot(): HTMLDivElement {
@@ -512,11 +688,31 @@ export class PaletteUI {
     collectionBar.appendChild(collectionLabel);
     collectionBar.style.display = "none";
 
+    const body = this.createElement("div", "spotlight-body") as HTMLDivElement;
+    const previewModeHeader = this.createElement(
+      "div",
+      "spotlight-section spotlight-preview-mode-header",
+    ) as HTMLDivElement;
+    previewModeHeader.id = "zotero-spotlight-preview-mode-header";
+    previewModeHeader.textContent = "Preview";
+    const listPane = this.createElement(
+      "div",
+      "spotlight-list-pane",
+    ) as HTMLDivElement;
     const list = this.createElement("div", "spotlight-list") as HTMLDivElement;
     list.id = "zotero-spotlight-list";
+    const previewPanel = this.createElement(
+      "div",
+      "spotlight-preview-panel",
+    ) as HTMLDivElement;
+    previewPanel.id = "zotero-spotlight-preview-panel";
     root.appendChild(input);
     root.appendChild(collectionBar);
-    root.appendChild(list);
+    root.appendChild(previewModeHeader);
+    listPane.appendChild(list);
+    body.appendChild(listPane);
+    body.appendChild(previewPanel);
+    root.appendChild(body);
     this.doc.documentElement?.appendChild(root);
     return root;
   }
@@ -542,6 +738,29 @@ export class PaletteUI {
   padding: 12px;
   z-index: 999999;
   font: inherit;
+  cursor: auto;
+}
+
+
+.spotlight-body {
+  display: block;
+  margin-top: 10px;
+}
+
+.spotlight-list-pane {
+  min-width: 0;
+}
+
+.spotlight-body.is-panel-open .spotlight-list-pane {
+  display: none;
+}
+
+.spotlight-preview-mode-header {
+  display: none;
+  margin-top: 10px;
+  padding-left: 6px;
+  padding-right: 6px;
+  box-sizing: border-box;
 }
 
 #zotero-spotlight-root.is-animate {
@@ -558,6 +777,7 @@ export class PaletteUI {
   background: var(--quick-open-input-bg);
   color: var(--quick-open-text);
   outline: none;
+  cursor: text;
 }
 
 #zotero-spotlight-input:focus {
@@ -583,10 +803,27 @@ export class PaletteUI {
 }
 
 #zotero-spotlight-list {
-  margin-top: 10px;
   max-height: 280px;
   overflow-y: auto;
   scrollbar-gutter: stable;
+  cursor: auto;
+}
+
+#zotero-spotlight-preview-panel {
+  display: none;
+  min-width: 0;
+  min-height: 280px;
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--quick-open-border);
+  border-radius: 8px;
+  background: var(--quick-open-panel-bg);
+  padding: 12px;
+  cursor: auto;
+}
+
+.spotlight-body.is-panel-open #zotero-spotlight-preview-panel {
+  display: block;
 }
 
 .spotlight-result {
@@ -636,6 +873,197 @@ export class PaletteUI {
   text-overflow: ellipsis;
 }
 
+.spotlight-preview-empty {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  min-height: 100%;
+  color: var(--quick-open-subtext);
+}
+
+.spotlight-preview-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--quick-open-muted);
+}
+
+.spotlight-preview-title {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--quick-open-text);
+}
+
+.spotlight-preview-subtitle {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--quick-open-subtext);
+}
+
+.spotlight-preview-meta,
+.spotlight-preview-actions,
+.spotlight-preview-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.spotlight-preview-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--quick-open-chip-bg);
+  color: var(--quick-open-chip-text);
+  font-size: 11px;
+}
+
+.spotlight-preview-meta .spotlight-preview-chip {
+  background: var(--quick-open-meta-chip-bg);
+  color: var(--quick-open-meta-chip-text);
+}
+
+.spotlight-preview-actions .spotlight-preview-chip {
+  background: var(--quick-open-action-chip-bg);
+  color: var(--quick-open-action-chip-text);
+}
+
+.spotlight-preview-tags .spotlight-preview-chip {
+  background: var(--quick-open-tag-chip-bg);
+  color: var(--quick-open-tag-chip-text);
+}
+
+.spotlight-preview-section {
+  margin-top: 14px;
+}
+
+.spotlight-preview-shell {
+  min-height: 100%;
+}
+
+.spotlight-preview-shell.is-actions-mode {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(0, 1.2fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.spotlight-actions-panel {
+  min-width: 0;
+  border-right: 1px solid var(--quick-open-border-soft);
+  padding-right: 12px;
+  min-height: 100%;
+  align-self: stretch;
+}
+
+.spotlight-preview-detail {
+  min-width: 0;
+}
+
+.spotlight-action-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 0;
+}
+
+.spotlight-action-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  color: var(--quick-open-text);
+  cursor: pointer;
+}
+
+.spotlight-action-item.is-selected {
+  background: var(--quick-open-hover);
+  border-color: var(--quick-open-border-soft);
+}
+
+.spotlight-action-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.spotlight-action-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.9;
+  background-size: 16px 16px;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.spotlight-action-icon.has-image-icon {
+  filter: var(--quick-open-image-icon-filter);
+}
+
+.spotlight-preview-label {
+  margin-bottom: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--quick-open-muted);
+}
+
+.spotlight-preview-text,
+.spotlight-preview-quote {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--quick-open-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.spotlight-preview-quote {
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--quick-open-quote-bg);
+}
+
+.spotlight-preview-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 760px) {
+  #zotero-spotlight-preview-panel {
+    min-height: 180px;
+    max-height: 220px;
+  }
+
+  .spotlight-preview-shell.is-actions-mode {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .spotlight-actions-panel {
+    border-right: none;
+    border-bottom: 1px solid var(--quick-open-border-soft);
+    padding-right: 0;
+    padding-bottom: 12px;
+  }
+}
+
 .spotlight-icon {
   width: 16px;
   height: 16px;
@@ -653,15 +1081,13 @@ export class PaletteUI {
   background-repeat: no-repeat;
   background-position: center;
   background-size: 14px 14px;
-  background-color: var(--quick-open-command-icon-bg);
-  border: 1px solid var(--quick-open-command-icon-border);
-  border-radius: 4px;
   color: var(--quick-open-command-icon-text);
   text-align: center;
-  line-height: 16px;
+  line-height: 18px;
   font-size: 11px;
   font-weight: 700;
   opacity: 1;
+  filter: var(--quick-open-image-icon-filter);
 }
 
 .spotlight-tag {
@@ -746,6 +1172,7 @@ export class PaletteUI {
 #zotero-spotlight-root {
   --quick-open-bg: #f6f5f2;
   --quick-open-border: #c9c5bf;
+  --quick-open-border-soft: #ddd6cc;
   --quick-open-border-focus: #8f8a81;
   --quick-open-focus-ring: rgba(143, 138, 129, 0.25);
   --quick-open-input-bg: #ffffff;
@@ -755,15 +1182,25 @@ export class PaletteUI {
   --quick-open-hover: #e7e2da;
   --quick-open-tag-text: #6f6a62;
   --quick-open-tag-bg: #ece8e2;
-  --quick-open-command-icon-bg: #f3efe8;
-  --quick-open-command-icon-border: #d5cec3;
+  --quick-open-panel-bg: rgba(255, 255, 255, 0.72);
+  --quick-open-chip-bg: #ebe6df;
+  --quick-open-chip-text: #474139;
+  --quick-open-meta-chip-bg: #e9e2d6;
+  --quick-open-meta-chip-text: #584c3b;
+  --quick-open-action-chip-bg: #e1e8de;
+  --quick-open-action-chip-text: #36513a;
+  --quick-open-tag-chip-bg: #dbe8ef;
+  --quick-open-tag-chip-text: #294c63;
+  --quick-open-quote-bg: #efe9e0;
   --quick-open-command-icon-text: #3f3a32;
+  --quick-open-image-icon-filter: none;
 }
 
 @media (prefers-color-scheme: dark) {
   #zotero-spotlight-root {
     --quick-open-bg: #1f1f1d;
     --quick-open-border: #3a3732;
+    --quick-open-border-soft: #4a443d;
     --quick-open-border-focus: #7b756c;
     --quick-open-focus-ring: rgba(123, 117, 108, 0.35);
     --quick-open-input-bg: #2b2925;
@@ -773,9 +1210,18 @@ export class PaletteUI {
     --quick-open-hover: #2f2c27;
     --quick-open-tag-text: #d7d2c8;
     --quick-open-tag-bg: #3a3530;
-    --quick-open-command-icon-bg: #d8d2c6;
-    --quick-open-command-icon-border: #b5aea2;
+    --quick-open-panel-bg: rgba(27, 25, 23, 0.8);
+    --quick-open-chip-bg: #37322d;
+    --quick-open-chip-text: #e2dbcf;
+    --quick-open-meta-chip-bg: #4a4034;
+    --quick-open-meta-chip-text: #f0dfc4;
+    --quick-open-action-chip-bg: #2f4233;
+    --quick-open-action-chip-text: #cde6d1;
+    --quick-open-tag-chip-bg: #243c4d;
+    --quick-open-tag-chip-text: #c7e3f4;
+    --quick-open-quote-bg: #2e2a26;
     --quick-open-command-icon-text: #26231f;
+    --quick-open-image-icon-filter: invert(0.92) brightness(1.05);
   }
 }
 `;
@@ -790,6 +1236,17 @@ export class PaletteUI {
     const element = this.doc.createElementNS(HTML_NS, tag) as T;
     element.className = className;
     return element;
+  }
+
+  private updateBodyMode(): void {
+    if (!this.body) {
+      return;
+    }
+    this.body.classList.toggle("is-panel-open", this.panelMode === "actions");
+    if (this.previewModeHeader) {
+      this.previewModeHeader.style.display =
+        this.panelMode === "actions" ? "block" : "none";
+    }
   }
 
   private buildRecentResults(): Array<QuickOpenResult | HistoryResult> {
@@ -1072,6 +1529,964 @@ export class PaletteUI {
       Boolean,
     );
     return parts.join("  ");
+  }
+
+  private renderPreview(): void {
+    if (!this.previewPanel) {
+      return;
+    }
+    this.previewPanel.textContent = "";
+
+    if (!this.results.length) {
+      this.previewPanel.appendChild(
+        this.createPreviewEmpty(
+          this.displayMode === "recent"
+            ? "Start typing to search your Zotero library."
+            : this.displayMode === "command"
+              ? "Type after `>` to discover commands."
+              : "No matching result to preview.",
+          this.displayMode === "recent"
+            ? "Recent searches, open tabs, and recently visited items appear here."
+            : this.displayMode === "command"
+              ? "Arrow through commands to inspect shortcuts and context before running them."
+              : "Try a broader query or use filters like `type:pdf` and `year:2024`.",
+        ),
+      );
+      return;
+    }
+
+    const result = this.results[this.selectedIndex];
+    if (!result) {
+      return;
+    }
+    const shell = this.createElement("div", "spotlight-preview-shell");
+    const detailContainer = this.createElement(
+      "div",
+      "spotlight-preview-detail",
+    );
+    if (this.panelMode === "actions") {
+      const actions = this.getPanelActions();
+      if (actions.length) {
+        shell.classList.add("is-actions-mode");
+        shell.appendChild(this.createActionsPanel(actions));
+      }
+    }
+    if (result.kind === "history") {
+      this.renderHistoryPreview(detailContainer, result as HistoryResult);
+      shell.appendChild(detailContainer);
+      this.previewPanel.appendChild(shell);
+      return;
+    }
+    if (result.kind === "command") {
+      this.renderCommandPreview(detailContainer, result as CommandResult);
+      shell.appendChild(detailContainer);
+      this.previewPanel.appendChild(shell);
+      return;
+    }
+    if (result.kind === "annotation") {
+      this.renderAnnotationPreview(detailContainer, result as AnnotationResult);
+      shell.appendChild(detailContainer);
+      this.previewPanel.appendChild(shell);
+      return;
+    }
+    this.renderItemPreview(detailContainer, result as QuickOpenResult);
+    shell.appendChild(detailContainer);
+    this.previewPanel.appendChild(shell);
+  }
+
+  private renderHistoryPreview(
+    container: HTMLElement,
+    result: HistoryResult,
+  ): void {
+    container.appendChild(
+      this.createPreviewHeader("Recent Search", result.title, result.subtitle),
+    );
+    this.appendPreviewChips(container, "spotlight-preview-meta", [
+      { label: "Enter reruns search" },
+      { label: "Search history" },
+    ]);
+    this.appendPreviewSection(container, "Query", result.query, false);
+    this.appendPreviewSection(
+      container,
+      "What happens",
+      "Press Enter to restore this query and refresh the result list without leaving the keyboard.",
+      false,
+    );
+  }
+
+  private renderCommandPreview(
+    container: HTMLElement,
+    result: CommandResult,
+  ): void {
+    container.appendChild(
+      this.createPreviewHeader("Command", result.title, result.subtitle),
+    );
+    this.appendPreviewChips(container, "spotlight-preview-meta", [
+      result.group ? { label: result.group } : null,
+      result.shortcut ? { label: result.shortcut } : null,
+      { label: "Command mode" },
+    ]);
+    this.appendPreviewSection(container, "Behavior", result.subtitle, false);
+    this.appendPreviewSection(
+      container,
+      "How to run",
+      "Press Enter to execute the command immediately. Spotlight stays keyboard-first and never moves focus into the preview.",
+      false,
+    );
+  }
+
+  private renderAnnotationPreview(
+    container: HTMLElement,
+    result: AnnotationResult,
+  ): void {
+    const meta = [result.authors, result.year ? String(result.year) : ""]
+      .filter(Boolean)
+      .join(" - ");
+    container.appendChild(
+      this.createPreviewHeader(
+        "Annotation",
+        result.subtitle || "Annotation result",
+        meta || "Jump directly to the matching annotation in the PDF reader.",
+      ),
+    );
+    this.appendPreviewChips(container, "spotlight-preview-meta", [
+      {
+        label: result.pageLabel ? `Page ${result.pageLabel}` : "Annotation",
+        color: result.annotationColor,
+      },
+      { label: "PDF jump" },
+    ]);
+    this.appendPreviewSection(container, "Matched text", result.title, true);
+    if (result.abstractSnippet) {
+      this.appendPreviewSection(
+        container,
+        "Comment",
+        result.abstractSnippet,
+        false,
+      );
+    }
+  }
+
+  private renderItemPreview(
+    container: HTMLElement,
+    result: QuickOpenResult,
+  ): void {
+    const item = Zotero.Items.get(result.id) as Zotero.Item | null;
+    const itemTypeLabel = this.getResultTypeBadge(result.resultType);
+    const meta = [result.authors, result.year ? String(result.year) : ""]
+      .filter(Boolean)
+      .join(" - ");
+    container.appendChild(
+      this.createPreviewHeader(
+        itemTypeLabel,
+        result.title,
+        result.subtitle || meta || this.getPreviewFallbackSubtitle(result),
+      ),
+    );
+    this.appendPreviewChips(container, "spotlight-preview-meta", [
+      { label: itemTypeLabel },
+      result.libraryKind === "group" ? { label: "Group library" } : null,
+      meta ? { label: meta } : null,
+    ]);
+
+    const bodyText = this.getPreviewBodyText(result, item);
+    if (bodyText) {
+      this.appendPreviewSection(container, "Preview", bodyText, false);
+    }
+
+    const tags = (result.tags || []).slice(0, 6).map((tag) => ({
+      label: `#${tag}`,
+    }));
+    if (tags.length) {
+      this.appendPreviewChips(container, "spotlight-preview-tags", tags);
+    }
+  }
+
+  private createActionsPanel(actions: PanelAction[]): HTMLElement {
+    const panel = this.createElement("div", "spotlight-actions-panel");
+    const list = this.createElement("div", "spotlight-action-list");
+    actions.forEach((action, index) => {
+      const button = this.createElement(
+        "button",
+        "spotlight-action-item",
+      ) as HTMLButtonElement;
+      button.type = "button";
+      if (index === this.selectedActionIndex) {
+        button.classList.add("is-selected");
+      }
+      if (action.icon) {
+        const icon = this.createElement("span", "spotlight-action-icon");
+        this.applyPanelActionIcon(icon, action.icon);
+        button.appendChild(icon);
+      }
+      const title = this.createElement("div", "spotlight-action-title");
+      title.textContent = action.label;
+      button.appendChild(title);
+      button.addEventListener("mouseenter", () => {
+        this.selectedActionIndex = index;
+        this.input.focus();
+        this.renderPreview();
+      });
+      button.addEventListener("click", () => {
+        void action.run();
+      });
+      list.appendChild(button);
+    });
+    panel.appendChild(list);
+    return panel;
+  }
+
+  private createPreviewEmpty(message: string, detail: string): HTMLElement {
+    const container = this.createElement("div", "spotlight-preview-empty");
+    const title = this.createElement("div", "spotlight-preview-title");
+    title.textContent = message;
+    const subtitle = this.createElement("div", "spotlight-preview-subtitle");
+    subtitle.textContent = detail;
+    container.appendChild(title);
+    container.appendChild(subtitle);
+    return container;
+  }
+
+  private createPreviewHeader(
+    eyebrowText: string,
+    titleText: string,
+    subtitleText: string,
+  ): HTMLElement {
+    const header = this.createElement("div", "spotlight-preview-header");
+    const eyebrow = this.createElement("div", "spotlight-preview-eyebrow");
+    eyebrow.textContent = eyebrowText;
+    const title = this.createElement("div", "spotlight-preview-title");
+    title.textContent = titleText;
+    const subtitle = this.createElement("div", "spotlight-preview-subtitle");
+    subtitle.textContent = subtitleText;
+    header.appendChild(eyebrow);
+    header.appendChild(title);
+    header.appendChild(subtitle);
+    return header;
+  }
+
+  private appendPreviewSection(
+    container: HTMLElement,
+    labelText: string,
+    bodyText: string,
+    quoted: boolean,
+  ): void {
+    const normalized = bodyText.trim();
+    if (!normalized) {
+      return;
+    }
+    const section = this.createElement("div", "spotlight-preview-section");
+    const label = this.createElement("div", "spotlight-preview-label");
+    label.textContent = labelText;
+    const body = this.createElement(
+      "div",
+      quoted ? "spotlight-preview-quote" : "spotlight-preview-text",
+    );
+    body.textContent = normalized;
+    section.appendChild(label);
+    section.appendChild(body);
+    container.appendChild(section);
+  }
+
+  private appendPreviewChips(
+    container: HTMLElement,
+    className: string,
+    chips: Array<{ label: string; color?: string } | null>,
+  ): void {
+    const valid = chips.filter(
+      (chip): chip is { label: string; color?: string } => !!chip?.label,
+    );
+    if (!valid.length) {
+      return;
+    }
+    const row = this.createElement("div", className);
+    valid.forEach((chip) => {
+      const element = this.createElement("span", "spotlight-preview-chip");
+      if (chip.color) {
+        const swatch = this.createElement("span", "spotlight-preview-swatch");
+        swatch.style.background = chip.color;
+        element.appendChild(swatch);
+      }
+      const text = this.doc.createTextNode(chip.label);
+      element.appendChild(text);
+      row.appendChild(element);
+    });
+    container.appendChild(row);
+  }
+
+  private getPreviewBodyText(
+    result: QuickOpenResult,
+    item: Zotero.Item | null,
+  ): string {
+    if (result.resultType === "note" && item?.isNote?.()) {
+      return (
+        getItemNoteSnippetSafe(item, 420) ||
+        result.abstractSnippet ||
+        "Open the note to continue reading or editing."
+      );
+    }
+    if (result.kind === "attachment" && item?.isAttachment?.()) {
+      const parent = this.getAttachmentParentItem(item);
+      if (parent) {
+        return (
+          getItemAbstractSnippetSafe(parent, 420) ||
+          this.buildPreviewText({
+            ...result,
+            authors: getItemAuthorsSafe(parent),
+            year: getItemYearSafe(parent),
+            tags: getItemTagsSafe(parent, 4),
+          }) ||
+          "Open the attachment in the reader."
+        );
+      }
+    }
+    return (
+      result.abstractSnippet ||
+      this.buildPreviewText(result) ||
+      this.getPreviewFallbackSubtitle(result)
+    );
+  }
+
+  private getPreviewFallbackSubtitle(result: QuickOpenResult): string {
+    if (result.resultType === "note") {
+      return "Open the note directly from Spotlight.";
+    }
+    if (result.resultType === "pdf") {
+      return "Open the PDF in the Zotero reader.";
+    }
+    return "Inspect the result here, then open it when you are ready.";
+  }
+
+  private getSelectedResult():
+    | QuickOpenResult
+    | CommandResult
+    | HistoryResult
+    | null {
+    return this.results[this.selectedIndex] || null;
+  }
+
+  private getPanelActions(): PanelAction[] {
+    const result = this.getSelectedResult();
+    if (!result) {
+      return [];
+    }
+    if (result.kind === "history") {
+      return [
+        {
+          id: "rerun-search",
+          label: "Run search",
+          icon: {
+            url: "chrome://zotero/skin/16/universal/arrow-clockwise.svg",
+            text: "↺",
+          },
+          hint: "Restore this query in the list",
+          run: async () => {
+            this.input.value = result.query;
+            this.closeActionsPanel();
+            await this.updateResults(result.query);
+          },
+        },
+      ];
+    }
+    if (result.kind === "command") {
+      return [
+        {
+          id: "run-command",
+          label: "Run command",
+          icon: {
+            url: this.getCommandIconURL(result.icon) || undefined,
+            text: ">",
+          },
+          hint: result.subtitle,
+          run: async () => {
+            const executed = await this.commandRegistry.run(
+              result.commandId,
+              this.win,
+            );
+            if (executed) {
+              this.hide();
+            }
+          },
+        },
+      ];
+    }
+    if (result.kind === "annotation") {
+      const actions: PanelAction[] = [
+        {
+          id: "open-annotation",
+          label: "Open annotation",
+          icon: {
+            url: "chrome://zotero/skin/16/universal/annotate-highlight.svg",
+            text: "✦",
+          },
+          hint: "Jump to the exact annotation in the PDF reader",
+          run: async () => {
+            await this.openAnnotation(result, "default");
+            this.hide();
+          },
+        },
+        {
+          id: "open-pdf-window",
+          label: "Open PDF in window",
+          icon: {
+            itemType: "attachmentPDF",
+            text: "□",
+          },
+          hint: "Open the source PDF in a separate reader window",
+          run: async () => {
+            await this.openAnnotation(result, "alternate");
+            this.hide();
+          },
+        },
+        {
+          id: "reveal-attachment",
+          label: "Reveal in library",
+          icon: {
+            url: "chrome://zotero/skin/16/universal/library-collection.svg",
+            text: "⌕",
+          },
+          hint: "Select the source PDF in Zotero",
+          run: async () => {
+            const attachmentResult = this.createAttachmentResult(
+              result.attachmentID || 0,
+            );
+            if (attachmentResult) {
+              await this.actionHandler.openResult(attachmentResult, "reveal");
+              this.hide();
+            }
+          },
+        },
+      ];
+      const copyAction = this.createCopyContentPanelAction(result);
+      if (copyAction) {
+        actions.push(copyAction);
+      }
+      return actions.filter((action) =>
+        action.id === "reveal-attachment"
+          ? typeof result.attachmentID === "number"
+          : true,
+      );
+    }
+    const actions: PanelAction[] = [
+      {
+        id: "open-default",
+        label: result.resultType === "pdf" ? "Open PDF" : "Open",
+        icon:
+          result.resultType === "pdf"
+            ? { itemType: "attachmentPDF", text: "↗" }
+            : result.resultType === "note"
+              ? {
+                  url: "chrome://zotero/skin/16/universal/note.svg",
+                  text: "↵",
+                }
+              : { itemType: "document", text: "↵" },
+        hint: "Open the selected result",
+        run: async () => {
+          await this.finishQuickOpen(result, "default");
+        },
+      },
+      {
+        id: "reveal-item",
+        label: "Reveal in library",
+        icon: {
+          url: "chrome://zotero/skin/16/universal/library-collection.svg",
+          text: "⌕",
+        },
+        hint: "Select this item in the Zotero main pane",
+        run: async () => {
+          await this.finishQuickOpen(result, "reveal");
+        },
+      },
+      {
+        id: "open-alternate",
+        label:
+          result.resultType === "pdf" || result.resultType === "note"
+            ? "Open in new window"
+            : "Open in alternate mode",
+        icon:
+          result.resultType === "pdf"
+            ? { itemType: "attachmentPDF", text: "□" }
+            : { itemType: "document", text: "□" },
+        hint: "Use the alternate open behavior",
+        run: async () => {
+          await this.finishQuickOpen(result, "alternate");
+        },
+      },
+    ].filter((action) =>
+      action.id === "open-alternate"
+        ? result.resultType === "pdf" || result.resultType === "note"
+        : true,
+    );
+
+    const pdfAction = this.createOpenPdfPanelAction(result);
+    if (pdfAction) {
+      actions.splice(1, 0, pdfAction);
+    }
+
+    const revealFileAction = this.createRevealPdfFilePanelAction(result);
+    if (revealFileAction) {
+      actions.splice(2, 0, revealFileAction);
+    }
+
+    const parentAction = this.createOpenParentPanelAction(result);
+    if (parentAction) {
+      actions.push(parentAction);
+    }
+
+    const citationActions = this.createCitationPanelActions(result);
+    if (citationActions.length) {
+      actions.push(...citationActions);
+    }
+
+    const copyAction = this.createCopyContentPanelAction(result);
+    if (copyAction) {
+      actions.push(copyAction);
+    }
+
+    return actions;
+  }
+
+  private createOpenPdfPanelAction(
+    result: QuickOpenResult,
+  ): PanelAction | null {
+    if (result.kind === "attachment" && result.resultType === "pdf") {
+      return null;
+    }
+    if (result.resultType === "note") {
+      const note = Zotero.Items.get(result.id) as Zotero.Item | null;
+      const parent = note ? this.getParentItem(note) : null;
+      if (!parent || !this.hasPdfAttachment(parent)) {
+        return null;
+      }
+      return {
+        id: "open-parent-pdf",
+        label: "Open parent PDF",
+        icon: { itemType: "attachmentPDF", text: "↗" },
+        hint: "Open the closest PDF attached to the parent item",
+        run: async () => {
+          const attachmentID = await this.getPrimaryAttachmentID(parent.id);
+          if (!attachmentID) {
+            return;
+          }
+          await this.actionHandler.openAttachment(attachmentID, false);
+          this.searchService.recordOpen(attachmentID);
+          this.hide();
+        },
+      };
+    }
+    if (result.kind !== "item") {
+      return null;
+    }
+    const item = Zotero.Items.get(result.id) as Zotero.Item | null;
+    if (!item || !this.hasPdfAttachment(item)) {
+      return null;
+    }
+    return {
+      id: "open-pdf",
+      label: "Open PDF",
+      icon: { itemType: "attachmentPDF", text: "↗" },
+      hint: "Open the best attachment for this item",
+      run: async () => {
+        const attachmentID = await this.getPrimaryAttachmentID(result.id);
+        if (!attachmentID) {
+          return;
+        }
+        await this.actionHandler.openAttachment(attachmentID, false);
+        this.searchService.recordOpen(result.id);
+        this.pushRecentActivated(result.id);
+        this.pushRecentSearch(this.currentQuery);
+        this.hide();
+      },
+    };
+  }
+
+  private createOpenParentPanelAction(
+    result: QuickOpenResult,
+  ): PanelAction | null {
+    const item = Zotero.Items.get(result.id) as Zotero.Item | null;
+    if (!item) {
+      return null;
+    }
+    const parent =
+      item.isAttachment?.() || item.isNote?.()
+        ? this.getParentItem(item) || this.getAttachmentParentItem(item)
+        : null;
+    if (!parent) {
+      return null;
+    }
+    return {
+      id: "open-parent-item",
+      label: "Open parent item",
+      icon: {
+        itemType: this.getItemTypeIconNameForItem(parent) || "document",
+        text: "↑",
+      },
+      hint: "Jump to the parent bibliographic record",
+      run: async () => {
+        await this.actionHandler.focusItemInLibrary(parent.id);
+        this.hide();
+      },
+    };
+  }
+
+  private createCitationPanelActions(result: QuickOpenResult): PanelAction[] {
+    const item = Zotero.Items.get(result.id) as Zotero.Item | null;
+    const target = this.getCitationTarget(item);
+    const pane = Zotero.getMainWindow()?.ZoteroPane;
+    if (!target || !pane) {
+      return [];
+    }
+    return [
+      {
+        id: "copy-citation",
+        label: "Copy Citation",
+        icon: this.getActionCommandIcon("copy-citation", "C"),
+        run: async () => {
+          await this.copyItemToClipboard(target, true);
+          this.hide();
+        },
+      },
+      {
+        id: "copy-bibliography",
+        label: "Copy Bibliography",
+        icon: this.getActionCommandIcon("copy-bibliography", "B"),
+        run: async () => {
+          await this.copyItemToClipboard(target, false);
+          this.hide();
+        },
+      },
+    ];
+  }
+
+  private createCopyContentPanelAction(
+    result: QuickOpenResult | AnnotationResult,
+  ): PanelAction | null {
+    if (result.kind === "annotation") {
+      const content = [result.title, result.abstractSnippet || ""]
+        .filter(Boolean)
+        .join("\n\n")
+        .trim();
+      if (!content) {
+        return null;
+      }
+      return {
+        id: "copy-annotation-content",
+        label: "Copy Content",
+        icon: this.getActionCommandIcon("copy-citation", "C"),
+        run: async () => {
+          this.copyTextToClipboard(content);
+          this.hide();
+        },
+      };
+    }
+    if (result.resultType !== "note") {
+      return null;
+    }
+    const item = Zotero.Items.get(result.id) as Zotero.Item | null;
+    if (!item?.isNote?.()) {
+      return null;
+    }
+    const content = getItemNoteSnippetSafe(item, 20000).trim();
+    if (!content) {
+      return null;
+    }
+    return {
+      id: "copy-note-content",
+      label: "Copy Content",
+      icon: this.getActionCommandIcon("copy-citation", "C"),
+      run: async () => {
+        this.copyTextToClipboard(content);
+        this.hide();
+      },
+    };
+  }
+
+  private createRevealPdfFilePanelAction(
+    result: QuickOpenResult,
+  ): PanelAction | null {
+    const label = `Show in ${this.getFileManagerLabel()}`;
+    if (result.kind === "attachment" && result.resultType === "pdf") {
+      return {
+        id: "reveal-pdf-file",
+        label,
+        icon: {
+          url: "chrome://zotero/skin/16/universal/library-collection.svg",
+          text: "⌕",
+        },
+        run: async () => {
+          await this.actionHandler.revealAttachmentFile(result.id);
+          this.hide();
+        },
+      };
+    }
+    if (
+      result.kind === "annotation" &&
+      typeof result.attachmentID === "number"
+    ) {
+      return {
+        id: "reveal-annotation-pdf-file",
+        label,
+        icon: {
+          url: "chrome://zotero/skin/16/universal/library-collection.svg",
+          text: "⌕",
+        },
+        run: async () => {
+          await this.actionHandler.revealAttachmentFile(result.attachmentID!);
+          this.hide();
+        },
+      };
+    }
+    if (result.resultType === "note") {
+      const note = Zotero.Items.get(result.id) as Zotero.Item | null;
+      const parent = note ? this.getParentItem(note) : null;
+      if (!parent || !this.hasPdfAttachment(parent)) {
+        return null;
+      }
+      return {
+        id: "reveal-parent-pdf-file",
+        label,
+        icon: {
+          url: "chrome://zotero/skin/16/universal/library-collection.svg",
+          text: "⌕",
+        },
+        run: async () => {
+          const attachmentID = await this.getPrimaryAttachmentID(parent.id);
+          if (!attachmentID) {
+            return;
+          }
+          await this.actionHandler.revealAttachmentFile(attachmentID);
+          this.hide();
+        },
+      };
+    }
+    if (result.kind !== "item") {
+      return null;
+    }
+    const item = Zotero.Items.get(result.id) as Zotero.Item | null;
+    if (!item || !this.hasPdfAttachment(item)) {
+      return null;
+    }
+    return {
+      id: "reveal-item-pdf-file",
+      label,
+      icon: {
+        url: "chrome://zotero/skin/16/universal/library-collection.svg",
+        text: "⌕",
+      },
+      run: async () => {
+        const attachmentID = await this.getPrimaryAttachmentID(result.id);
+        if (!attachmentID) {
+          return;
+        }
+        await this.actionHandler.revealAttachmentFile(attachmentID);
+        this.hide();
+      },
+    };
+  }
+
+  private async finishQuickOpen(
+    result: QuickOpenResult,
+    intent: OpenIntent,
+  ): Promise<void> {
+    await this.actionHandler.openResult(result, intent);
+    this.pushRecentActivated(result.id);
+    if (intent !== "reveal") {
+      this.searchService.recordOpen(result.id);
+    }
+    this.pushRecentSearch(this.currentQuery);
+    this.hide();
+  }
+
+  private async copyItemToClipboard(
+    item: Zotero.Item,
+    citation: boolean,
+  ): Promise<void> {
+    const pane = Zotero.getMainWindow()?.ZoteroPane;
+    if (!pane) {
+      return;
+    }
+    const previousSelection = (pane.getSelectedItems?.(true) || []) as number[];
+    const alreadyOnlyTarget =
+      previousSelection.length === 1 && previousSelection[0] === item.id;
+    if (!alreadyOnlyTarget) {
+      await pane.selectItems?.([item.id]);
+    }
+    pane.copySelectedItemsToClipboard(citation);
+    if (!alreadyOnlyTarget && previousSelection.length) {
+      void pane.selectItems?.(previousSelection).catch((error: unknown) => {
+        ztoolkit.log("Failed to restore previous item selection", error);
+      });
+    }
+  }
+
+  private copyTextToClipboard(text: string): void {
+    const helper = (this.win as any).navigator?.clipboard;
+    if (helper?.writeText) {
+      void helper.writeText(text).catch(() => {
+        Zotero.Utilities.Internal.copyTextToClipboard(text);
+      });
+      return;
+    }
+    Zotero.Utilities.Internal.copyTextToClipboard(text);
+  }
+
+  private getActionCommandIcon(
+    iconName: string,
+    fallbackText: string,
+  ): NonNullable<PanelAction["icon"]> {
+    return {
+      url: this.getCommandIconURL(iconName) || undefined,
+      text: fallbackText,
+    };
+  }
+
+  private applyPanelActionIcon(
+    icon: HTMLElement,
+    definition: NonNullable<PanelAction["icon"]>,
+  ): void {
+    if (definition.itemType) {
+      icon.classList.add("icon", "icon-css", "icon-item-type");
+      icon.setAttribute("data-item-type", definition.itemType);
+      return;
+    }
+    if (definition.url) {
+      icon.classList.add("has-image-icon");
+      icon.style.backgroundImage = `url("${definition.url.replace(/"/g, '\\"')}")`;
+      return;
+    }
+    if (definition.text) {
+      icon.textContent = definition.text;
+    }
+  }
+
+  private getParentItem(item: Zotero.Item): Zotero.Item | null {
+    const parentID = (item as any).parentID ?? (item as any).parentItemID;
+    if (typeof parentID === "number") {
+      return Zotero.Items.get(parentID) as Zotero.Item;
+    }
+    return null;
+  }
+
+  private getCitationTarget(item: Zotero.Item | null): Zotero.Item | null {
+    const parent = item ? this.getParentForCommand(item) : null;
+    if (!parent) {
+      return null;
+    }
+    if (parent.isRegularItem()) {
+      return parent;
+    }
+    if (parent.isNote?.()) {
+      return null;
+    }
+    return parent;
+  }
+
+  private getParentForCommand(item: Zotero.Item | null): Zotero.Item | null {
+    if (!item) {
+      return null;
+    }
+    if (item.isRegularItem()) {
+      return item;
+    }
+    const candidate = item as any;
+    const parentID = candidate.parentID ?? candidate.parentItemID;
+    if (typeof parentID === "number") {
+      return Zotero.Items.get(parentID) as Zotero.Item;
+    }
+    const topLevel = candidate.topLevelItem as Zotero.Item | undefined;
+    if (topLevel && topLevel.id && topLevel.id !== item.id) {
+      return topLevel;
+    }
+    return item;
+  }
+
+  private async getPrimaryAttachmentID(itemID: number): Promise<number | null> {
+    const item = Zotero.Items.get(itemID) as Zotero.Item;
+    if (!item) {
+      return null;
+    }
+    const candidate = item as any;
+    if (typeof candidate.getBestAttachment === "function") {
+      const best = await candidate.getBestAttachment();
+      if (typeof best === "number") {
+        return best;
+      }
+      if (best?.id) {
+        return best.id as number;
+      }
+    }
+    if (typeof candidate.getPrimaryAttachment === "function") {
+      const primary = await candidate.getPrimaryAttachment();
+      if (typeof primary === "number") {
+        return primary;
+      }
+      if (primary?.id) {
+        return primary.id as number;
+      }
+    }
+    const attachmentIDs = candidate.getAttachments?.() || [];
+    for (const attachmentID of attachmentIDs) {
+      const attachment = Zotero.Items.get(attachmentID) as Zotero.Item;
+      if (attachment && isPDFAttachment(attachment)) {
+        return attachmentID;
+      }
+    }
+    return null;
+  }
+
+  private getItemTypeIconNameForItem(item: Zotero.Item | null): string | null {
+    if (!item) {
+      return null;
+    }
+    if (item.isAttachment()) {
+      const candidate = item as any;
+      if (
+        typeof candidate.isPDFAttachment === "function" &&
+        candidate.isPDFAttachment()
+      ) {
+        if (
+          typeof candidate.isLinkedFileAttachment === "function" &&
+          candidate.isLinkedFileAttachment()
+        ) {
+          return "attachmentPDFLink";
+        }
+        return "attachmentPDF";
+      }
+    }
+    try {
+      const typeIconName =
+        typeof (item as any).getItemTypeIconName === "function"
+          ? (item as any).getItemTypeIconName()
+          : null;
+      if (typeof typeIconName === "string" && typeIconName.trim()) {
+        return typeIconName.trim();
+      }
+    } catch (error) {
+      ztoolkit.log("Failed to get panel item-type icon name", error);
+    }
+    return item.isAttachment() ? "attachment" : "document";
+  }
+
+  private hasPdfAttachment(item: Zotero.Item): boolean {
+    const candidate = item as any;
+    const attachmentIDs = candidate.getAttachments?.() || [];
+    for (const attachmentID of attachmentIDs) {
+      const attachment = Zotero.Items.get(attachmentID) as Zotero.Item;
+      if (attachment && isPDFAttachment(attachment)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private getFileManagerLabel(): string {
+    if ((Zotero as any).isMac) {
+      return "Finder";
+    }
+    if ((Zotero as any).isWin) {
+      return "Explorer";
+    }
+    return "File Manager";
   }
 
   private applyResultIcon(
