@@ -26,22 +26,18 @@ Spotlight is different:
 
 > **Zotero Spotlight started as a personal tool. I wanted a fast, keyboard-first way to jump between papers anywhere inside Zotero, but couldn’t find an existing plugin that offered this experience. I built it for my own workflow and decided to open-source it so others can use it, adapt it, or help improve it.**
 
-## What it does
+## Features
 
-- Global shortcut (default: `Cmd+P` on macOS, `Ctrl+P` on Windows/Linux) opens a lightweight command palette.
-- Works inside the PDF reader, note editor, and main window.
-- Search tokens/filters: `type:`, `tag:`, and `year:` for faster narrowing.
-- Rich result rows with metadata preview (authors, year, tags, abstract snippet) and badges (`PDF`, `NOTE`, `ITEM`, `GROUP`, `TAB`, `ANNO`).
-- Ranking boosts for recency, frequency, and active library scope.
-- Smart recents and per-window search history (including one-click removal from history).
-- Command mode: type `>` in the palette to run actions (`Copy Citation`, `Copy Bibliography`, `New Note`, `Open Collection`, `Add Note + Open PDF`) based on current context.
-- Keyboard-first:
-  - Type to filter
-  - ↑ ↓ to select
-  - Enter to open
-  - `Cmd/Ctrl+Enter` to open in alternate window mode
-  - `Shift+Enter` to reveal selected item in library
-  - Esc to close
+- Open Spotlight with one shortcut: `Cmd+P` on macOS, `Ctrl+P` on Windows/Linux.
+- Works in the main Zotero window, PDF reader, and note editor.
+- Search across your library with fuzzy matching, instead of only the current collection.
+- Narrow results with `type:`, `tag:`, and `year:` filters, including combinations like `type:pdf year:2024`.
+- Search items, notes, PDFs, and annotations from one place.
+- View richer results with authors, year, tags, abstract snippets, and badges like `PDF`, `NOTE`, `ITEM`, `GROUP`, and `ANNO`.
+- See which items are already open and jump annotation results directly to the matching location in the PDF.
+- Use `>` to enter command mode for actions like `New Note`, `Copy Citation`, `Copy Bibliography`, `Open Collection`, and `Add Note + Open PDF`, or type `>tabs` to search open tabs.
+- Get ranking boosts from recency, frequency, and active library scope, plus recent-search history per window.
+- Stay keyboard-first: type to filter, use `↑` / `↓` to navigate, `Enter` to open, `Cmd/Ctrl+Enter` for alternate window mode, `Shift+Enter` to reveal in library, and `Esc` to close.
 
 ## Contributing
 
