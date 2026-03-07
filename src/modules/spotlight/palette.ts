@@ -575,6 +575,7 @@ export class PaletteUI {
 }
 
 .spotlight-result {
+  position: relative;
   padding: 8px 26px 8px 10px;
   border-radius: 6px;
   cursor: pointer;
@@ -660,16 +661,16 @@ export class PaletteUI {
   flex: 0 0 auto;
 }
 
-.spotlight-tag-tab {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #ffffff;
+.spotlight-tab-dot {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
   background: #0078d4;
-  border-radius: 999px;
-  padding: 3px 6px;
-  flex: 0 0 auto;
 }
 
 .spotlight-history-delete {
@@ -1271,16 +1272,18 @@ export class PaletteUI {
     if ((result as QuickOpenResult).libraryKind === "group") {
       badges.push("GROUP");
     }
-    if (isOpenTab) {
-      badges.push("TAB");
-    }
 
     badges.forEach((label) => {
       const badge = this.createElement("span", "spotlight-tag");
-      if (label === "TAB") badge.classList.add("spotlight-tag-tab");
-      if (label !== "TAB") badge.textContent = label;
+      badge.textContent = label;
       row.appendChild(badge);
     });
+    if (isOpenTab) {
+      const tabDot = this.createElement("span", "spotlight-tab-dot");
+      tabDot.title = "Open tab";
+      tabDot.setAttribute("aria-label", "Open tab");
+      row.appendChild(tabDot);
+    }
   }
 
   private getResultTypeBadge(type: QuickOpenResult["resultType"]): string {
