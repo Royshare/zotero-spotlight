@@ -18,6 +18,7 @@
     var(--in-content-primary-button-background, #0078d4); }
     .zotero-spotlight-radio-input:checked::after { background-color:
     var(--in-content-primary-button-background, #0078d4); }
+    .zotero-spotlight-section-label { font-weight: bold; margin-bottom: 4px; }
   </html:style>
 </linkset>
 <groupbox
@@ -25,7 +26,10 @@
   onload="Zotero.__addonInstance__.hooks.onPrefsEvent('load', { window })"
 >
   <vbox>
-    <label data-l10n-id="pref-shortcut-section"></label>
+    <label
+      class="zotero-spotlight-section-label"
+      data-l10n-id="pref-shortcut-section"
+    ></label>
     <vbox
       id="zotero-prefpane-__addonRef__-shortcut"
       class="zotero-spotlight-radio-group"
@@ -51,7 +55,10 @@
     </vbox>
   </vbox>
   <vbox>
-    <label data-l10n-id="pref-results-section"></label>
+    <label
+      class="zotero-spotlight-section-label"
+      data-l10n-id="pref-results-section"
+    ></label>
     <hbox align="center" pack="start">
       <html:label
         for="zotero-prefpane-__addonRef__-results-limit"
@@ -64,5 +71,69 @@
         max="40"
       ></html:input>
     </hbox>
+  </vbox>
+  <vbox>
+    <label
+      class="zotero-spotlight-section-label"
+      data-l10n-id="pref-window-section"
+    ></label>
+    <hbox align="center" pack="start">
+      <html:label
+        for="zotero-prefpane-__addonRef__-window-height"
+        data-l10n-id="pref-window-height"
+      ></html:label>
+      <html:input
+        type="number"
+        id="zotero-prefpane-__addonRef__-window-height"
+        min="200"
+        max="800"
+      ></html:input>
+    </hbox>
+    <hbox align="center" pack="start">
+      <html:label
+        for="zotero-prefpane-__addonRef__-window-width"
+        data-l10n-id="pref-window-width"
+      ></html:label>
+      <html:input
+        type="number"
+        id="zotero-prefpane-__addonRef__-window-width"
+        min="300"
+        max="1200"
+      ></html:input>
+    </hbox>
+  </vbox>
+  <vbox>
+    <label
+      class="zotero-spotlight-section-label"
+      data-l10n-id="pref-search-section"
+    ></label>
+    <hbox align="center">
+      <html:input
+        type="checkbox"
+        id="zotero-prefpane-__addonRef__-search-annotations"
+      />
+      <html:label
+        for="zotero-prefpane-__addonRef__-search-annotations"
+        data-l10n-id="pref-search-annotations"
+        style="margin-left: 6px"
+      ></html:label>
+    </hbox>
+    <hbox align="center">
+      <html:input
+        type="checkbox"
+        id="zotero-prefpane-__addonRef__-restore-search"
+      />
+      <html:label
+        for="zotero-prefpane-__addonRef__-restore-search"
+        data-l10n-id="pref-restore-search"
+        style="margin-left: 6px"
+      ></html:label>
+    </hbox>
+  </vbox>
+  <vbox>
+    <html:button
+      id="zotero-prefpane-__addonRef__-reset-defaults"
+      data-l10n-id="pref-reset-defaults"
+    ></html:button>
   </vbox>
 </groupbox>
