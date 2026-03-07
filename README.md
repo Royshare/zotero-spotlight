@@ -91,8 +91,8 @@ Zotero Spotlight aims to become a **universal command surface inside Zotero** �
 
 ### Phase 7 — Command Workflows
 
-- [ ] Expand command mode into reusable workflows for common research tasks
-- [ ] Examples: `>literature note`, `>extract highlights`
+- [x] Expand command mode into reusable workflows for common research tasks
+- [x] Examples: `>literature note`, `>extract highlights`
 
 ### Phase 8 — Annotation Search Improvements
 
