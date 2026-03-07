@@ -115,7 +115,8 @@ export class PaletteUI {
     if (this.root) {
       this.root.style.width = getWindowWidth() + "px";
     }
-    const shouldRestore = !!(getPref as any)("restoreSearch") && this._savedQuery !== "";
+    const shouldRestore =
+      !!(getPref as any)("restoreSearch") && this._savedQuery !== "";
     this.input.value = shouldRestore ? this._savedQuery : "";
     this.results = [];
     this.selectedIndex = 0;
@@ -145,10 +146,14 @@ export class PaletteUI {
     }
     this.renderResults();
     void this.updateResults(shouldRestore ? this._savedQuery : "").then(() => {
-      if (shouldRestore) { this.list.scrollTop = this._savedScrollTop; }
+      if (shouldRestore) {
+        this.list.scrollTop = this._savedScrollTop;
+      }
     });
     this.input.focus();
-    if (shouldRestore) { this.input.select(); }
+    if (shouldRestore) {
+      this.input.select();
+    }
   }
 
   hide(): void {
@@ -205,34 +210,43 @@ export class PaletteUI {
     const parsedQuery = this.parseQuery(query);
     this.currentQuery = parsedQuery.query;
     const resultsLimit = this.getResultsLimit();
-      // >tabs command
-      if (parsedQuery.isCommandMode && (parsedQuery.query === "tabs" || parsedQuery.query === "tab")) {
-        const mainWin = Zotero.getMainWindow() as any;
-        const allTabs = mainWin?.Zotero_Tabs?._tabs ?? [];
-        const tabResults: QuickOpenResult[] = [];
-        for (const tab of allTabs) {
-          const itemID = tab?.data?.itemID;
-          if (!itemID) continue;
-          const item = Zotero.Items.get(itemID) as any;
-          if (!item) continue;
-          const parent = item.isAttachment?.() ? Zotero.Items.get(item.parentID) as any : item;
-          tabResults.push({
-            kind: item.isAttachment?.() ? "attachment" : "item",
-            id: itemID,
-            title: item.isAttachment?.() ? (parent?.getDisplayTitle?.() || (item as any).attachmentFilename || "PDF") : (item.getDisplayTitle?.() || "Untitled"),
-            subtitle: item.isAttachment?.() ? "PDF" : "Item",
-            resultType: item.isAttachment?.() ? "pdf" : "item",
-            libraryKind: "user",
-            score: 10,
-          });
-        }
-        this.results = tabResults;
-        this.sectionHeader = `Open Tabs (${tabResults.length})`;
-        this.displayMode = "search";
-        this.selectedIndex = 0;
-        this.renderResults();
-        return;
+    // >tabs command
+    if (
+      parsedQuery.isCommandMode &&
+      (parsedQuery.query === "tabs" || parsedQuery.query === "tab")
+    ) {
+      const mainWin = Zotero.getMainWindow() as any;
+      const allTabs = mainWin?.Zotero_Tabs?._tabs ?? [];
+      const tabResults: QuickOpenResult[] = [];
+      for (const tab of allTabs) {
+        const itemID = tab?.data?.itemID;
+        if (!itemID) continue;
+        const item = Zotero.Items.get(itemID) as any;
+        if (!item) continue;
+        const parent = item.isAttachment?.()
+          ? (Zotero.Items.get(item.parentID) as any)
+          : item;
+        tabResults.push({
+          kind: item.isAttachment?.() ? "attachment" : "item",
+          id: itemID,
+          title: item.isAttachment?.()
+            ? parent?.getDisplayTitle?.() ||
+              (item as any).attachmentFilename ||
+              "PDF"
+            : item.getDisplayTitle?.() || "Untitled",
+          subtitle: item.isAttachment?.() ? "PDF" : "Item",
+          resultType: item.isAttachment?.() ? "pdf" : "item",
+          libraryKind: "user",
+          score: 10,
+        });
       }
+      this.results = tabResults;
+      this.sectionHeader = `Open Tabs (${tabResults.length})`;
+      this.displayMode = "search";
+      this.selectedIndex = 0;
+      this.renderResults();
+      return;
+    }
     if (!parsedQuery.isCommandMode && !this.currentQuery) {
       this.results = this.buildRecentResults();
       this.sectionHeader = "Recent";
@@ -358,8 +372,12 @@ export class PaletteUI {
     }
 
     // Category counts
-    const itemCount = this.results.filter((r) => r.kind !== "annotation").length;
-    const annoCount = this.results.filter((r) => r.kind === "annotation").length;
+    const itemCount = this.results.filter(
+      (r) => r.kind !== "annotation",
+    ).length;
+    const annoCount = this.results.filter(
+      (r) => r.kind === "annotation",
+    ).length;
     let lastSectionKind: string | null = null;
 
     this.results.forEach((result, index) => {
@@ -487,10 +505,7 @@ export class PaletteUI {
       HTML_NS,
       "label",
     ) as HTMLElement;
-    collectionLabel.setAttribute(
-      "for",
-      "zotero-spotlight-collection-filter",
-    );
+    collectionLabel.setAttribute("for", "zotero-spotlight-collection-filter");
     collectionLabel.id = "zotero-spotlight-collection-label";
     collectionLabel.textContent = "Search in this folder only";
     collectionBar.appendChild(collectionCheckbox);
@@ -1069,7 +1084,9 @@ export class PaletteUI {
     }
     if (result.kind === "command") {
       icon.classList.add("spotlight-command-icon");
-      const commandIconURL = this.getCommandIconURL((result as CommandResult).icon);
+      const commandIconURL = this.getCommandIconURL(
+        (result as CommandResult).icon,
+      );
       if (commandIconURL) {
         icon.style.backgroundImage = `url("${commandIconURL}")`;
       } else {
@@ -1268,7 +1285,9 @@ export class PaletteUI {
     }
 
     const badges: string[] = [];
-    badges.push(this.getResultTypeBadge((result as QuickOpenResult).resultType));
+    badges.push(
+      this.getResultTypeBadge((result as QuickOpenResult).resultType),
+    );
     if ((result as QuickOpenResult).libraryKind === "group") {
       badges.push("GROUP");
     }
@@ -1330,13 +1349,13 @@ export class PaletteUI {
 }
 
 function getWindowHeight(): number {
-  const raw = Number(( getPref as any)("windowHeight"));
+  const raw = Number((getPref as any)("windowHeight"));
   if (Number.isNaN(raw) || raw <= 0) return 400;
   return Math.min(800, Math.max(200, raw));
 }
 
 function getWindowWidth(): number {
-  const raw = Number(( getPref as any)("windowWidth"));
+  const raw = Number((getPref as any)("windowWidth"));
   if (Number.isNaN(raw) || raw <= 0) return 560;
   return Math.min(1200, Math.max(300, raw));
 }

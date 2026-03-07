@@ -113,10 +113,10 @@ export class SearchService {
     if (collectionFilter) {
       collectionItemIDs = new Set<number>();
       const collectAllIDs = (col: any) => {
-        for (const id of (col.getChildItems?.(true) || [])) {
+        for (const id of col.getChildItems?.(true) || []) {
           (collectionItemIDs as Set<number>).add(id);
         }
-        for (const sub of (col.getChildCollections?.() || [])) {
+        for (const sub of col.getChildCollections?.() || []) {
           collectAllIDs(sub);
         }
       };
@@ -181,8 +181,7 @@ export class SearchService {
     }
 
     // Sort within each category, annotations always after items
-    const kindOrder = (r: QuickOpenResult) =>
-      r.kind === "annotation" ? 1 : 0;
+    const kindOrder = (r: QuickOpenResult) => (r.kind === "annotation" ? 1 : 0);
     const sorted = results.sort((a, b) => {
       const kindDiff = kindOrder(a) - kindOrder(b);
       if (kindDiff !== 0) return kindDiff;
@@ -191,15 +190,13 @@ export class SearchService {
 
     const perCategoryLimit = Math.ceil(limit / 2);
     const searchAnnotations =
-      ( getPref as any)("searchAnnotations") !== false &&
-      ( getPref as any)("searchAnnotations") !== null;
+      (getPref as any)("searchAnnotations") !== false &&
+      (getPref as any)("searchAnnotations") !== null;
     const itemResults = sorted
       .filter((r) => r.kind !== "annotation")
       .slice(0, perCategoryLimit);
     const annoResults = searchAnnotations
-      ? sorted
-          .filter((r) => r.kind === "annotation")
-          .slice(0, perCategoryLimit)
+      ? sorted.filter((r) => r.kind === "annotation").slice(0, perCategoryLimit)
       : [];
     return [...itemResults, ...annoResults];
   }
@@ -373,14 +370,18 @@ async function buildIndex(): Promise<IndexedEntry[]> {
 
   // --- ANNOTATION INDEX ---
   const searchAnnotations =
-    ( getPref as any)("searchAnnotations") !== false &&
-    ( getPref as any)("searchAnnotations") !== null;
+    (getPref as any)("searchAnnotations") !== false &&
+    (getPref as any)("searchAnnotations") !== null;
   if (searchAnnotations) {
     for (const library of libraries) {
       const libraryKind =
         (library as any).libraryType === "group" ? "group" : "user";
       try {
-        let annoRows: any[], attRows: any[], textRows: any[], keyRows: any[], annoKeyRows: any[];
+        let annoRows: any[],
+          attRows: any[],
+          textRows: any[],
+          keyRows: any[],
+          annoKeyRows: any[];
         await (Zotero.DB as any).executeTransaction(async () => {
           annoRows = await (Zotero.DB as any).queryAsync(
             `SELECT itemID AS aid, parentItemID AS pid, comment AS cmt, color AS col, pageLabel AS pl, position AS pos FROM itemAnnotations`,
@@ -405,13 +406,17 @@ async function buildIndex(): Promise<IndexedEntry[]> {
         if (!annoRows! || !annoRows!.length) continue;
 
         const textMap = new Map<number, string>();
-        if (textRows!) for (const r of textRows!) textMap.set(r.tid, r.xxt || "");
+        if (textRows!)
+          for (const r of textRows!) textMap.set(r.tid, r.xxt || "");
         const keyMap = new Map<number, string>();
         if (keyRows!) for (const r of keyRows!) keyMap.set(r.iid, r.kkey || "");
         const annoKeyMap = new Map<number, string>();
-        if (annoKeyRows!) for (const r of annoKeyRows!) annoKeyMap.set(r.iid, r.kkey || "");
+        if (annoKeyRows!)
+          for (const r of annoKeyRows!) annoKeyMap.set(r.iid, r.kkey || "");
         const attMap = new Map<number, { ppid: number; akey: string }>();
-        if (attRows!) for (const r of attRows!) attMap.set(r.iid, { ppid: r.ppid, akey: keyMap.get(r.iid) || "" });
+        if (attRows!)
+          for (const r of attRows!)
+            attMap.set(r.iid, { ppid: r.ppid, akey: keyMap.get(r.iid) || "" });
 
         for (const row of annoRows!) {
           try {
@@ -425,12 +430,13 @@ async function buildIndex(): Promise<IndexedEntry[]> {
             if (!annotationText && !annotationComment) continue;
             const parentTitle = getItemTitleSafe(parentItem) || "";
             const parentAuthors = getItemAuthorsSafe(parentItem) || "";
-            let pageLabel = row.pl || "";
+            const pageLabel = row.pl || "";
             let pageIndex = 0;
             if (row.pos) {
               try {
                 const pos = JSON.parse(row.pos);
-                if (typeof pos.pageIndex === "number") pageIndex = pos.pageIndex;
+                if (typeof pos.pageIndex === "number")
+                  pageIndex = pos.pageIndex;
               } catch (_) {}
             }
             const title = annotationText
@@ -692,7 +698,12 @@ function parseTypeFilter(rawValue: string): ResultType[] {
     .filter(Boolean);
   const parsed: ResultType[] = [];
   for (const entry of values) {
-    if (entry === "pdf" || entry === "note" || entry === "item" || entry === "annotation") {
+    if (
+      entry === "pdf" ||
+      entry === "note" ||
+      entry === "item" ||
+      entry === "annotation"
+    ) {
       parsed.push(entry as ResultType);
     }
   }
