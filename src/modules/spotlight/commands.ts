@@ -372,6 +372,46 @@ export class CommandRegistry {
           pane.selectItem?.(target.id);
         },
       },
+      {
+        id: "show-pdf-in-file-manager",
+        title: `Show PDF in ${getFileManagerLabel()}`,
+        subtitle: `Reveal the current PDF file in ${getFileManagerLabel()}`,
+        keywords: [
+          "finder",
+          "explorer",
+          "reveal",
+          "show file",
+          "pdf",
+          "attachment",
+        ],
+        contexts: ["main", "reader", "note"],
+        icon: "collection",
+        group: "Navigation",
+        isAvailable: ({ activeItem }) => {
+          const parent = getParentForCommand(activeItem);
+          if (!parent || !parent.isRegularItem()) {
+            return { enabled: false, reason: "Select an item first" };
+          }
+          if (!hasPdfAttachment(parent)) {
+            return {
+              enabled: false,
+              reason: "Current item does not have a PDF attachment",
+            };
+          }
+          return { enabled: true };
+        },
+        run: async ({ activeItem }) => {
+          const parent = getParentForCommand(activeItem);
+          if (!parent || !parent.isRegularItem()) {
+            return;
+          }
+          const attachmentID = await getBestPdfAttachmentID(parent);
+          if (!attachmentID) {
+            return;
+          }
+          await revealAttachmentInFileManager(attachmentID);
+        },
+      },
     ];
   }
 }
@@ -466,6 +506,35 @@ async function getBestPdfAttachmentID(
   return null;
 }
 
+function hasPdfAttachment(item: Zotero.Item): boolean {
+  const candidate = item as any;
+  const attachmentIDs = candidate.getAttachments?.() || [];
+  for (const attachmentID of attachmentIDs) {
+    const attachment = Zotero.Items.get(attachmentID) as Zotero.Item;
+    if (attachment && isPDFAttachment(attachment)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function revealAttachmentInFileManager(
+  attachmentID: number,
+): Promise<void> {
+  const attachment = Zotero.Items.get(attachmentID) as Zotero.Item;
+  if (!attachment || !attachment.isAttachment()) {
+    return;
+  }
+  const filePath =
+    typeof (attachment as any).getFilePathAsync === "function"
+      ? await (attachment as any).getFilePathAsync()
+      : (attachment as any).getFilePath?.();
+  if (!filePath || typeof filePath !== "string") {
+    return;
+  }
+  await Zotero.File.reveal(filePath);
+}
+
 function isPDFAttachment(item: Zotero.Item): boolean {
   const candidate = item as any;
   if (typeof candidate.isPDFAttachment === "function") {
@@ -479,6 +548,16 @@ function isPDFAttachment(item: Zotero.Item): boolean {
 function shouldUseExternalPdfHandler(): boolean {
   const handler = String(Zotero.Prefs.get("fileHandler.pdf") || "").trim();
   return handler.length > 0;
+}
+
+function getFileManagerLabel(): string {
+  if ((Zotero as any).isMac) {
+    return "Finder";
+  }
+  if ((Zotero as any).isWin) {
+    return "Explorer";
+  }
+  return "File Manager";
 }
 
 function getActiveTabItemID(win: Window): number | null {
