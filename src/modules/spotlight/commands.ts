@@ -11,6 +11,19 @@ export interface CommandResult {
   group?: string;
 }
 
+export type SpotlightCommandDefinition = {
+  id: string;
+  title: string;
+  subtitle: string;
+  keywords?: string[];
+  contexts?: CommandContext[];
+  shortcut?: string;
+  icon?: string;
+  group?: string;
+  isAvailable?: (context: CommandRunContext) => Availability;
+  run: (context: CommandRunContext) => Promise<void>;
+};
+
 type Availability = {
   enabled: boolean;
   reason?: string;
@@ -39,10 +52,32 @@ type SpotlightCommand = {
 
 export class CommandRegistry {
   private usageCounts = new Map<string, number>();
-  private commands: SpotlightCommand[];
+  private builtInCommands: SpotlightCommand[];
+  private static externalCommands = new Map<string, SpotlightCommand>();
 
   constructor() {
-    this.commands = this.createBuiltInCommands();
+    this.builtInCommands = this.createBuiltInCommands();
+  }
+
+  static registerExternalCommand(command: SpotlightCommandDefinition): void {
+    if (!command.id?.trim()) {
+      throw new Error("Spotlight command id is required");
+    }
+    if (CommandRegistry.externalCommands.has(command.id)) {
+      throw new Error(`Spotlight command already registered: ${command.id}`);
+    }
+    CommandRegistry.externalCommands.set(
+      command.id,
+      normalizeExternalCommand(command),
+    );
+  }
+
+  static unregisterExternalCommand(commandId: string): boolean {
+    return CommandRegistry.externalCommands.delete(commandId);
+  }
+
+  static listExternalCommands(): string[] {
+    return Array.from(CommandRegistry.externalCommands.keys()).sort();
   }
 
   async search(
@@ -53,7 +88,7 @@ export class CommandRegistry {
     const runContext = this.getRunContext(win);
     const normalizedQuery = normalize(query);
     const results: CommandResult[] = [];
-    for (const command of this.commands) {
+    for (const command of this.getCommands()) {
       if (!command.contexts.includes(runContext.context)) {
         continue;
       }
@@ -86,7 +121,7 @@ export class CommandRegistry {
   }
 
   async run(commandId: string, win: Window): Promise<boolean> {
-    const command = this.commands.find((entry) => entry.id === commandId);
+    const command = this.getCommands().find((entry) => entry.id === commandId);
     if (!command) {
       return false;
     }
@@ -512,6 +547,13 @@ export class CommandRegistry {
       },
     ];
   }
+
+  private getCommands(): SpotlightCommand[] {
+    return [
+      ...this.builtInCommands,
+      ...Array.from(CommandRegistry.externalCommands.values()),
+    ];
+  }
 }
 
 export function detectCommandContext(win: Window): CommandContext {
@@ -862,6 +904,25 @@ function getActiveTabItemID(win: Window): number | null {
 
 function normalize(value: string): string {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function normalizeExternalCommand(
+  command: SpotlightCommandDefinition,
+): SpotlightCommand {
+  return {
+    id: command.id,
+    title: command.title,
+    subtitle: command.subtitle,
+    keywords: command.keywords || [],
+    contexts: command.contexts?.length
+      ? command.contexts
+      : ["main", "reader", "note"],
+    shortcut: command.shortcut,
+    icon: command.icon,
+    group: command.group,
+    isAvailable: command.isAvailable || (() => ({ enabled: true })),
+    run: command.run,
+  };
 }
 
 function fuzzyScore(query: string, text: string): number {

@@ -1,4 +1,8 @@
 import { WindowManager } from "./modules/spotlight/windowManager";
+import {
+  CommandRegistry,
+  type SpotlightCommandDefinition,
+} from "./modules/spotlight/commands";
 import { registerPrefsScripts } from "./modules/preferenceScript";
 
 let windowManager: WindowManager | null = null;
@@ -21,6 +25,17 @@ async function onStartup() {
   windowManager = new WindowManager();
   windowManager.start();
   addon.data.spotlight = { windowManager };
+  addon.api = {
+    registerCommand(command: SpotlightCommandDefinition) {
+      CommandRegistry.registerExternalCommand(command);
+    },
+    unregisterCommand(commandId: string) {
+      return CommandRegistry.unregisterExternalCommand(commandId);
+    },
+    listCommands() {
+      return CommandRegistry.listExternalCommands();
+    },
+  };
 
   // Mark initialized as true to confirm plugin loading status
   // outside of the plugin (e.g. scaffold testing process)

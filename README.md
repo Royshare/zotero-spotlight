@@ -101,8 +101,8 @@ Zotero Spotlight aims to become a **universal command surface inside Zotero** â€
 
 ### Phase 9 â€” Command API for Other Plugins
 
-- [ ] Expose a command API so other Zotero plugins can register Spotlight actions
-- [ ] Grow Spotlight into a shared command surface for the wider plugin ecosystem
+- [x] Expose a command API so other Zotero plugins can register Spotlight actions
+- [x] Grow Spotlight into a shared command surface for the wider plugin ecosystem
 
 ---
 
