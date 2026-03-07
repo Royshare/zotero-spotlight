@@ -96,8 +96,8 @@ Zotero Spotlight aims to become a **universal command surface inside Zotero** �
 
 ### Phase 8 — Annotation Search Improvements
 
-- [ ] Improve annotation search relevance, matching, and navigation
-- [ ] Optimize for annotation-heavy research workflows
+- [x] Improve annotation search relevance, matching, and navigation
+- [x] Optimize for annotation-heavy research workflows
 
 ### Phase 9 — Command API for Other Plugins
 
