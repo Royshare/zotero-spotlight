@@ -24,14 +24,14 @@ Spotlight is different:
 
 > You think of a paper → you’re there.
 
-## Zotero Spotlight started as a personal tool. I wanted a fast, keyboard-first way to jump between papers anywhere inside Zotero, but couldn’t find an existing plugin that offered this experience. I built it for my own workflow and decided to open-source it so others can use it, adapt it, or help improve it.
+> **Zotero Spotlight started as a personal tool. I wanted a fast, keyboard-first way to jump between papers anywhere inside Zotero, but couldn’t find an existing plugin that offered this experience. I built it for my own workflow and decided to open-source it so others can use it, adapt it, or help improve it.**
 
 ## What it does
 
 - Global shortcut (default: `Cmd+P` on macOS, `Ctrl+P` on Windows/Linux) opens a lightweight command palette.
 - Works inside the PDF reader, note editor, and main window.
 - Search tokens/filters: `type:`, `tag:`, and `year:` for faster narrowing.
-- Rich result rows with metadata preview (authors, year, tags, abstract snippet) and badges (`PDF`, `NOTE`, `ITEM`, `GROUP`, `TAB`).
+- Rich result rows with metadata preview (authors, year, tags, abstract snippet) and badges (`PDF`, `NOTE`, `ITEM`, `GROUP`, `TAB`, `ANNO`).
 - Ranking boosts for recency, frequency, and active library scope.
 - Smart recents and per-window search history (including one-click removal from history).
 - Command mode: type `>` in the palette to run actions (`Copy Citation`, `Copy Bibliography`, `New Note`, `Open Collection`, `Add Note + Open PDF`) based on current context.
@@ -43,13 +43,20 @@ Spotlight is different:
   - `Shift+Enter` to reveal selected item in library
   - Esc to close
 
+## Contributing
+
+Contributions are welcome.
+
+- Read `CONTRIBUTING.md` for setup, workflow, and pull request guidance.
+- Run `npm run lint:fix` before opening a pull request.
+
 ---
 
 ## Roadmap
 
 Zotero Spotlight aims to become a **universal command surface inside Zotero** — available everywhere, fast enough to feel invisible.
 
-### Phase 1 — Quick Open Foundation (current)
+### Phase 1 — Quick Open Foundation
 
 - [x] Global palette in all Zotero windows (main window + PDF reader + note editor)
 - [x] Fast fuzzy search over items and attachments
@@ -64,6 +71,7 @@ Zotero Spotlight aims to become a **universal command surface inside Zotero** �
 ### Phase 3 — Rich Results & Filters
 
 - [x] Search tokens / filters (e.g. `type:`, `tag:`, `year:`)
+  - [ ] better UX for filters usage
 - [x] Result badges (PDF, Note, Group, Tab)
 - [x] Improved ranking (recent, frequency, library scope)
 
@@ -80,11 +88,15 @@ Zotero Spotlight aims to become a **universal command surface inside Zotero** �
 - [x] Rich preview rows (authors, year, tags, abstract snippet)
 - [x] Subtle animations with minimal distraction
 
+### Phase 6 - Integration with Popular Zotero Extensions
+
+- [ ] Support for popular Zotero extensions (e.g. Better BibTeX, Zotero PDF Reader)
+
 ---
 
 ## Status
 
-- Version: v0.1 (experimental)
+- Version: v0.4 (experimental)
 - Developed for Zotero 8.x, should work with Zotero 7.x.
 - MacOS tested.
 - Windows / Linux expected to work but not fully tested.

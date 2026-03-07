@@ -1,0 +1,74 @@
+name: Bug report
+description: Report something that is broken or behaving unexpectedly.
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem.
+  - type: input
+    id: summary
+    attributes:
+      label: Short summary
+      description: What is going wrong?
+      placeholder: Spotlight fails to open from the PDF reader
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Please list the smallest set of steps that reproduces the issue.
+      placeholder: |
+        1. Open Zotero
+        2. Open a PDF reader tab
+        3. Press Cmd+P
+        4. Nothing happens
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: The Spotlight palette should open.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: Describe what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: zotero-version
+    attributes:
+      label: Zotero version
+      placeholder: 8.0.x
+    validations:
+      required: true
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Zotero Spotlight version
+      placeholder: 0.3.1
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Linux
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Extra context
+      description: Add screenshots, logs, or anything else that may help.

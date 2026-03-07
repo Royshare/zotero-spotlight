@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest an improvement to Zotero Spotlight.
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sharing an idea.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Workflow problem
+      description: What task feels slow, awkward, or missing today?
+      placeholder: I want to jump from a search result directly to annotations.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What would you like Zotero Spotlight to do?
+      placeholder: Add an annotation search scope and open the selected annotation directly.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe any workaround or alternative you have tried.
+  - type: textarea
+    id: context
+    attributes:
+      label: Extra context
+      description: Mockups, references, or workflow details are welcome.
