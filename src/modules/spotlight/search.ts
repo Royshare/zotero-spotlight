@@ -61,6 +61,9 @@ type IndexedEntry = {
   searchText: string;
   // annotation-specific
   annotationColor?: string;
+  annotationText?: string;
+  annotationComment?: string;
+  annotationParentTitle?: string;
   attachmentID?: number;
   attachmentKey?: string;
   annoKey?: string;
@@ -70,6 +73,7 @@ type IndexedEntry = {
 
 type ParsedQuery = {
   textQuery: string;
+  annotationOnly: boolean;
   filters: {
     types: Set<ResultType>;
     tags: string[];
@@ -134,9 +138,7 @@ export class SearchService {
           entry.kind === "annotation" ? entry.attachmentID : entry.id;
         if (!checkID || !collectionItemIDs.has(checkID)) continue;
       }
-      const baseScore = parsedQuery.textQuery
-        ? fuzzyScore(parsedQuery.textQuery, entry.searchText)
-        : 10;
+      const baseScore = getEntryScore(entry, parsedQuery);
       if (baseScore <= 0) {
         continue;
       }
@@ -180,21 +182,29 @@ export class SearchService {
       }
     }
 
-    // Sort within each category, annotations always after items
-    const kindOrder = (r: QuickOpenResult) => (r.kind === "annotation" ? 1 : 0);
+    const kindOrder = (r: QuickOpenResult) => {
+      if (parsedQuery.annotationOnly) {
+        return r.kind === "annotation" ? 0 : 1;
+      }
+      return r.kind === "annotation" ? 1 : 0;
+    };
     const sorted = results.sort((a, b) => {
       const kindDiff = kindOrder(a) - kindOrder(b);
       if (kindDiff !== 0) return kindDiff;
       return b.score - a.score;
     });
 
-    const perCategoryLimit = Math.ceil(limit / 2);
+    const perCategoryLimit = parsedQuery.annotationOnly
+      ? limit
+      : Math.ceil(limit / 2);
     const searchAnnotations =
       (getPref as any)("searchAnnotations") !== false &&
       (getPref as any)("searchAnnotations") !== null;
-    const itemResults = sorted
-      .filter((r) => r.kind !== "annotation")
-      .slice(0, perCategoryLimit);
+    const itemResults = parsedQuery.annotationOnly
+      ? []
+      : sorted
+          .filter((r) => r.kind !== "annotation")
+          .slice(0, perCategoryLimit);
     const annoResults = searchAnnotations
       ? sorted.filter((r) => r.kind === "annotation").slice(0, perCategoryLimit)
       : [];
@@ -457,13 +467,16 @@ async function buildIndex(): Promise<IndexedEntry[]> {
               libraryID: library.libraryID,
               libraryKind,
               annotationColor: row.col || "#ffd400",
+              annotationText,
+              annotationComment,
+              annotationParentTitle: parentTitle,
               attachmentID,
               attachmentKey: att.akey,
               annoKey: annoKeyMap.get(row.aid) || "",
               pageLabel,
               pageIndex,
               searchText: normalize(
-                `${annotationText} ${annotationComment} ${parentTitle} ${parentAuthors}`,
+                `${annotationText} ${annotationComment} ${parentTitle} ${parentAuthors} ${pageLabel}`,
               ),
             });
           } catch (err) {
@@ -630,6 +643,14 @@ function parseStructuredQuery(rawQuery: string): ParsedQuery {
 
   for (const token of tokens) {
     const lower = token.toLowerCase();
+    if (token.startsWith("@")) {
+      types.add("annotation");
+      const annotationToken = token.slice(1).trim();
+      if (annotationToken) {
+        textTokens.push(annotationToken);
+      }
+      continue;
+    }
     if (lower.startsWith("type:")) {
       const parsedTypes = parseTypeFilter(token.slice(5));
       parsedTypes.forEach((type) => types.add(type));
@@ -665,6 +686,10 @@ function parseStructuredQuery(rawQuery: string): ParsedQuery {
 
   return {
     textQuery: textTokens.join(" ").trim(),
+    annotationOnly:
+      types.size === 1 &&
+      types.has("annotation") &&
+      !Array.from(types).some((type) => type !== "annotation"),
     filters: {
       types,
       tags,
@@ -672,6 +697,56 @@ function parseStructuredQuery(rawQuery: string): ParsedQuery {
       yearMax,
     },
   };
+}
+
+function getEntryScore(entry: IndexedEntry, query: ParsedQuery): number {
+  const baseScore = query.textQuery
+    ? fuzzyScore(query.textQuery, entry.searchText)
+    : 10;
+  if (baseScore <= 0) {
+    return -1;
+  }
+  if (entry.kind !== "annotation" || !query.textQuery) {
+    return baseScore;
+  }
+  return baseScore + getAnnotationQueryBoost(entry, query.textQuery);
+}
+
+function getAnnotationQueryBoost(
+  entry: IndexedEntry,
+  rawQuery: string,
+): number {
+  const query = normalize(rawQuery);
+  if (!query) {
+    return 0;
+  }
+  let boost = 0;
+  const text = normalize(entry.annotationText || "");
+  const comment = normalize(entry.annotationComment || "");
+  const parentTitle = normalize(entry.annotationParentTitle || "");
+  const subtitle = normalize(entry.subtitle || "");
+
+  if (text) {
+    if (text.startsWith(query)) {
+      boost += 18;
+    } else if (text.includes(query)) {
+      boost += 12;
+    }
+  }
+  if (comment) {
+    if (comment.startsWith(query)) {
+      boost += 12;
+    } else if (comment.includes(query)) {
+      boost += 8;
+    }
+  }
+  if (parentTitle.includes(query)) {
+    boost += 5;
+  }
+  if (subtitle.includes(query)) {
+    boost += 3;
+  }
+  return boost;
 }
 
 function tokenize(query: string): string[] {

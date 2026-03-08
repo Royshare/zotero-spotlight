@@ -11,6 +11,19 @@ export interface CommandResult {
   group?: string;
 }
 
+export type SpotlightCommandDefinition = {
+  id: string;
+  title: string;
+  subtitle: string;
+  keywords?: string[];
+  contexts?: CommandContext[];
+  shortcut?: string;
+  icon?: string;
+  group?: string;
+  isAvailable?: (context: CommandRunContext) => Availability;
+  run: (context: CommandRunContext) => Promise<void>;
+};
+
 type Availability = {
   enabled: boolean;
   reason?: string;
@@ -39,10 +52,32 @@ type SpotlightCommand = {
 
 export class CommandRegistry {
   private usageCounts = new Map<string, number>();
-  private commands: SpotlightCommand[];
+  private builtInCommands: SpotlightCommand[];
+  private static externalCommands = new Map<string, SpotlightCommand>();
 
   constructor() {
-    this.commands = this.createBuiltInCommands();
+    this.builtInCommands = this.createBuiltInCommands();
+  }
+
+  static registerExternalCommand(command: SpotlightCommandDefinition): void {
+    if (!command.id?.trim()) {
+      throw new Error("Spotlight command id is required");
+    }
+    if (CommandRegistry.externalCommands.has(command.id)) {
+      throw new Error(`Spotlight command already registered: ${command.id}`);
+    }
+    CommandRegistry.externalCommands.set(
+      command.id,
+      normalizeExternalCommand(command),
+    );
+  }
+
+  static unregisterExternalCommand(commandId: string): boolean {
+    return CommandRegistry.externalCommands.delete(commandId);
+  }
+
+  static listExternalCommands(): string[] {
+    return Array.from(CommandRegistry.externalCommands.keys()).sort();
   }
 
   async search(
@@ -53,7 +88,7 @@ export class CommandRegistry {
     const runContext = this.getRunContext(win);
     const normalizedQuery = normalize(query);
     const results: CommandResult[] = [];
-    for (const command of this.commands) {
+    for (const command of this.getCommands()) {
       if (!command.contexts.includes(runContext.context)) {
         continue;
       }
@@ -86,7 +121,7 @@ export class CommandRegistry {
   }
 
   async run(commandId: string, win: Window): Promise<boolean> {
-    const command = this.commands.find((entry) => entry.id === commandId);
+    const command = this.getCommands().find((entry) => entry.id === commandId);
     if (!command) {
       return false;
     }
@@ -326,6 +361,104 @@ export class CommandRegistry {
         },
       },
       {
+        id: "literature-note",
+        title: "Literature Note",
+        subtitle: "Create a structured literature note for the current item",
+        keywords: [
+          "workflow",
+          "literature note",
+          "research note",
+          "summary",
+          "template",
+        ],
+        contexts: ["main", "reader", "note"],
+        icon: "note",
+        group: "Workflow",
+        isAvailable: ({ pane, activeItem }) => {
+          if (!pane) {
+            return {
+              enabled: false,
+              reason: "Main Zotero pane is unavailable",
+            };
+          }
+          if (typeof pane.canEdit === "function" && !pane.canEdit()) {
+            return { enabled: false, reason: "Selected library is read-only" };
+          }
+          const parent = getParentForCommand(activeItem);
+          if (!parent || !parent.isRegularItem()) {
+            return { enabled: false, reason: "Select an item first" };
+          }
+          return { enabled: true };
+        },
+        run: async ({ pane, activeItem }) => {
+          const parent = getParentForCommand(activeItem);
+          if (!pane || !parent || !parent.isRegularItem()) {
+            return;
+          }
+          const note = await createChildNote(
+            parent,
+            buildLiteratureNoteContent(parent),
+          );
+          await openNoteForWorkflow(note.id, pane);
+        },
+      },
+      {
+        id: "extract-highlights",
+        title: "Extract Highlights",
+        subtitle: "Create a note from PDF highlights and annotation comments",
+        keywords: [
+          "workflow",
+          "extract highlights",
+          "annotations",
+          "highlights",
+          "pdf",
+        ],
+        contexts: ["main", "reader", "note"],
+        icon: "note",
+        group: "Workflow",
+        isAvailable: ({ pane, activeItem }) => {
+          if (!pane) {
+            return {
+              enabled: false,
+              reason: "Main Zotero pane is unavailable",
+            };
+          }
+          if (typeof pane.canEdit === "function" && !pane.canEdit()) {
+            return { enabled: false, reason: "Selected library is read-only" };
+          }
+          const parent = getParentForCommand(activeItem);
+          if (!parent || !parent.isRegularItem()) {
+            return { enabled: false, reason: "Select an item first" };
+          }
+          if (!hasPdfAttachment(parent)) {
+            return {
+              enabled: false,
+              reason: "Current item does not have a PDF attachment",
+            };
+          }
+          return { enabled: true };
+        },
+        run: async ({ pane, activeItem }) => {
+          const parent = getParentForCommand(activeItem);
+          if (!pane || !parent || !parent.isRegularItem()) {
+            return;
+          }
+          const attachmentID = await getBestPdfAttachmentID(parent);
+          if (!attachmentID) {
+            return;
+          }
+          const attachment = Zotero.Items.get(attachmentID) as Zotero.Item;
+          if (!attachment) {
+            return;
+          }
+          const note = await createChildNote(
+            parent,
+            buildExtractHighlightsNoteContent(parent, attachment),
+          );
+          await openNoteForWorkflow(note.id, pane);
+        },
+      },
+      {
         id: "open-collection",
         title: "Open Collection",
         subtitle: "Jump to parent collection for current item",
@@ -412,6 +545,13 @@ export class CommandRegistry {
           await revealAttachmentInFileManager(attachmentID);
         },
       },
+    ];
+  }
+
+  private getCommands(): SpotlightCommand[] {
+    return [
+      ...this.builtInCommands,
+      ...Array.from(CommandRegistry.externalCommands.values()),
     ];
   }
 }
@@ -506,6 +646,116 @@ async function getBestPdfAttachmentID(
   return null;
 }
 
+async function createChildNote(
+  parent: Zotero.Item,
+  noteHTML: string,
+): Promise<Zotero.Item> {
+  const note = new Zotero.Item("note");
+  note.libraryID = parent.libraryID;
+  (note as any).parentID = parent.id;
+  note.setNote(noteHTML);
+  await note.saveTx();
+  return note;
+}
+
+async function openNoteForWorkflow(
+  noteID: number,
+  pane: _ZoteroTypes.ZoteroPane,
+): Promise<void> {
+  try {
+    const notes = (Zotero as any).Notes;
+    if (notes?.open) {
+      await notes.open(noteID, null, { openInWindow: false });
+      return;
+    }
+  } catch (error) {
+    ztoolkit.log("Failed to open workflow note", error);
+  }
+  pane.selectItem?.(noteID);
+}
+
+function buildLiteratureNoteContent(item: Zotero.Item): string {
+  const title = escapeHTML(item.getDisplayTitle?.() || "Untitled");
+  const creators = escapeHTML(getCreatorLine(item) || "");
+  const year = escapeHTML(getYearLine(item) || "");
+  const publication = escapeHTML(getPublicationLine(item) || "");
+  const tags =
+    item
+      .getTags?.()
+      .map((entry) => entry.tag)
+      .filter(Boolean) || [];
+  const abstractText = escapeHTML(getAbstractLine(item) || "");
+  const tagsHTML = tags.length
+    ? `<p><strong>Tags</strong>: ${tags.map(escapeHTML).join(", ")}</p>`
+    : "";
+  return `
+    <h1>Literature note</h1>
+    <h2>${title}</h2>
+    ${creators ? `<p><strong>Authors</strong>: ${creators}</p>` : ""}
+    ${year ? `<p><strong>Year</strong>: ${year}</p>` : ""}
+    ${publication ? `<p><strong>Source</strong>: ${publication}</p>` : ""}
+    ${tagsHTML}
+    ${abstractText ? `<h3>Abstract</h3><p>${abstractText}</p>` : ""}
+    <h3>Key contribution</h3>
+    <p></p>
+    <h3>Main ideas</h3>
+    <ul><li></li></ul>
+    <h3>Evidence / methods</h3>
+    <ul><li></li></ul>
+    <h3>Questions</h3>
+    <ul><li></li></ul>
+    <h3>Connections</h3>
+    <ul><li></li></ul>
+  `;
+}
+
+function buildExtractHighlightsNoteContent(
+  parent: Zotero.Item,
+  attachment: Zotero.Item,
+): string {
+  const title = escapeHTML(parent.getDisplayTitle?.() || "Untitled");
+  const annotations = [...(attachment.getAnnotations?.() || [])]
+    .filter((annotation) => {
+      const text = annotation.annotationText?.trim() || "";
+      const comment = annotation.annotationComment?.trim() || "";
+      return !!text || !!comment;
+    })
+    .sort((a, b) => {
+      const left = String(a.annotationSortIndex || "");
+      const right = String(b.annotationSortIndex || "");
+      return left.localeCompare(right, undefined, { numeric: true });
+    });
+  const entriesHTML = annotations.length
+    ? annotations
+        .map((annotation) => {
+          const page = escapeHTML(annotation.annotationPageLabel || "");
+          const quote = escapeHTML(annotation.annotationText || "");
+          const comment = escapeHTML(annotation.annotationComment || "");
+          const color = normalizeAnnotationColor(annotation.annotationColor);
+          return `
+            <li>
+              <p><strong>${page ? `p. ${page}` : "Annotation"}</strong></p>
+              ${quote ? `<blockquote>${quote}</blockquote>` : ""}
+              ${comment ? `<p>${comment}</p>` : ""}
+              <p><em>${escapeHTML(color)}</em></p>
+            </li>
+          `;
+        })
+        .join("")
+    : "<li><p>No extracted highlights were available.</p></li>";
+  return `
+    <h1>Extracted highlights</h1>
+    <h2>${title}</h2>
+    <p><strong>Source PDF</strong>: ${escapeHTML(
+      (attachment as any).attachmentFilename ||
+        attachment.getDisplayTitle?.() ||
+        "PDF",
+    )}</p>
+    <p><strong>Total annotations</strong>: ${annotations.length}</p>
+    <ol>${entriesHTML}</ol>
+  `;
+}
+
 function hasPdfAttachment(item: Zotero.Item): boolean {
   const candidate = item as any;
   const attachmentIDs = candidate.getAttachments?.() || [];
@@ -560,6 +810,67 @@ function getFileManagerLabel(): string {
   return "File Manager";
 }
 
+function getCreatorLine(item: Zotero.Item): string {
+  const creators = item.getCreators?.() || [];
+  return creators
+    .map((creator) => {
+      const first = creator.firstName || "";
+      const last = creator.lastName || "";
+      return `${first} ${last}`.trim();
+    })
+    .filter(Boolean)
+    .join(", ");
+}
+
+function getYearLine(item: Zotero.Item): string {
+  const date = String(item.getField?.("date", true, true) || "").trim();
+  const match = date.match(/\b(\d{4})\b/);
+  return match ? match[1] : "";
+}
+
+function getPublicationLine(item: Zotero.Item): string {
+  const fields = [
+    "publicationTitle",
+    "proceedingsTitle",
+    "bookTitle",
+    "publisher",
+  ];
+  for (const field of fields) {
+    const value = String(item.getField?.(field, true, true) || "").trim();
+    if (value) {
+      return value;
+    }
+  }
+  return "";
+}
+
+function getAbstractLine(item: Zotero.Item): string {
+  return String(item.getField?.("abstractNote", true, true) || "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeAnnotationColor(value: string): string {
+  const normalized = value.toLowerCase();
+  const map: Record<string, string> = {
+    "#ffd400": "Yellow highlight",
+    "#ff6666": "Red highlight",
+    "#5fb236": "Green highlight",
+    "#2ea8e5": "Blue highlight",
+    "#a28ae5": "Purple highlight",
+  };
+  return map[normalized] || value || "Highlight";
+}
+
+function escapeHTML(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function getActiveTabItemID(win: Window): number | null {
   const localTabs = (win as any).Zotero_Tabs as
     | _ZoteroTypes.Zotero_Tabs
@@ -593,6 +904,25 @@ function getActiveTabItemID(win: Window): number | null {
 
 function normalize(value: string): string {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function normalizeExternalCommand(
+  command: SpotlightCommandDefinition,
+): SpotlightCommand {
+  return {
+    id: command.id,
+    title: command.title,
+    subtitle: command.subtitle,
+    keywords: command.keywords || [],
+    contexts: command.contexts?.length
+      ? command.contexts
+      : ["main", "reader", "note"],
+    shortcut: command.shortcut,
+    icon: command.icon,
+    group: command.group,
+    isAvailable: command.isAvailable || (() => ({ enabled: true })),
+    run: command.run,
+  };
 }
 
 function fuzzyScore(query: string, text: string): number {
