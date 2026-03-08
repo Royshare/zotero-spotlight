@@ -30,14 +30,29 @@ Spotlight is different:
 
 - Open Spotlight with one shortcut: `Cmd+P` on macOS, `Ctrl+P` on Windows/Linux.
 - Works in the main Zotero window, PDF reader, and note editor.
-- Search across your library with fuzzy matching, instead of only the current collection.
-- Narrow results with `type:`, `tag:`, and `year:` filters, including combinations like `type:pdf year:2024`.
-- Search items, notes, PDFs, and annotations from one place.
-- View richer results with authors, year, tags, abstract snippets, and badges like `PDF`, `NOTE`, `ITEM`, `GROUP`, and `ANNO`.
-- See which items are already open and jump annotation results directly to the matching location in the PDF.
-- Use `>` to enter command mode for actions like `New Note`, `Copy Citation`, `Copy Bibliography`, `Open Collection`, and `Add Note + Open PDF`, or type `>tabs` to search open tabs.
-- Get ranking boosts from recency, frequency, and active library scope, plus recent-search history per window.
-- Stay keyboard-first: type to filter, use `↑` / `↓` to navigate, `Enter` to open, `Cmd/Ctrl+Enter` for alternate window mode, `Shift+Enter` to reveal in library, and `Esc` to close.
+
+### 1. Search, Switch, Filter
+
+- Search across your library with fuzzy matching instead of being limited to the current collection.
+- Switch between items, notes, PDFs, annotations, and open tabs from one place.
+- Narrow results with `type:`, `tag:`, and `year:` filters, including combinations like `type:pdf year:2024`, or use `@query` to search annotations directly.
+- Use richer result rows and press `Right Arrow` on a selected result to open preview details and contextual actions.
+- Jump annotation results directly to the matching location in the PDF, with improved annotation-focused search relevance.
+- Get ranking boosts from recency, frequency, library scope, and recent-search history per window.
+
+### 2. Commands and Workflows
+
+- Use `>` to enter command mode for built-in actions like `New Note`, `Copy Citation`, `Copy Bibliography`, `Open Collection`, and `Show PDF in Finder/Explorer`.
+- Run reusable workflows like `>literature note` and `>extract highlights` for common research tasks.
+- Use `>tabs` to search and switch across currently open Zotero tabs.
+- Trigger context-aware commands based on the current Zotero window and selected item.
+- Let other Zotero plugins register commands into Spotlight through the command API.
+
+### 3. Future Direction: AI Commands
+
+- Spotlight is designed to grow toward intent-driven AI commands, closer to a Zotero-native Raycast-style command surface.
+- Likely future directions include paper summarization, annotation synthesis, note drafting, and paper-to-note comparison workflows.
+- This layer is planned, not shipped yet.
 
 ## Contributing
 
@@ -50,59 +65,7 @@ Contributions are welcome.
 
 ## Roadmap
 
-Zotero Spotlight aims to become a **universal command surface inside Zotero** — available everywhere, fast enough to feel invisible.
-
-### Phase 1 — Quick Open Foundation
-
-- [x] Global palette in all Zotero windows (main window + PDF reader + note editor)
-- [x] Fast fuzzy search over items and attachments
-- [x] Open PDFs, notes,or jump to already-open reader tabs
-
-### Phase 2 — Actions & Commands
-
-- [x] Command registry (e.g. _New note_, _Copy citation_, _Open collection_)
-- [x] Context-aware actions (item-focused vs reader-focused)
-- [x] Discoverable commands with keyboard shortcuts
-
-### Phase 3 — Rich Results & Filters
-
-- [x] Search tokens / filters (e.g. `type:`, `tag:`, `year:`)
-  - [ ] better UX for filters usage
-- [x] Result badges (PDF, Note, Group, Tab)
-- [x] Improved ranking (recent, frequency, library scope)
-
-### Phase 4 — Productivity Layer
-
-- [x] Quick actions on results (e.g. Enter vs modifier keys)
-- [x] Lightweight multi-step workflows  
-       _(select item → add note → open PDF)_
-- [x] Smart recents and search history (per window)
-
-### Phase 5 — UI Polish
-
-- [x] Styling aligned with Zotero light / dark themes
-- [x] Rich preview rows (authors, year, tags, abstract snippet)
-- [x] Subtle animations with minimal distraction
-
-### Phase 6 — Right-Side Preview Panel
-
-- [x] Add a right-side preview panel for the currently selected result
-- [x] Show enough context to make Spotlight feel faster and smarter during review
-
-### Phase 7 — Command Workflows
-
-- [x] Expand command mode into reusable workflows for common research tasks
-- [x] Examples: `>literature note`, `>extract highlights`
-
-### Phase 8 — Annotation Search Improvements
-
-- [x] Improve annotation search relevance, matching, and navigation
-- [x] Optimize for annotation-heavy research workflows
-
-### Phase 9 — Command API for Other Plugins
-
-- [x] Expose a command API so other Zotero plugins can register Spotlight actions
-- [x] Grow Spotlight into a shared command surface for the wider plugin ecosystem
+The implementation roadmap and phase-by-phase development notes live in `doc/roadmap.md`.
 
 ---
 
