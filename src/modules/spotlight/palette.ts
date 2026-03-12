@@ -1,7 +1,11 @@
 import type { ActionHandler, OpenIntent } from "./actions";
 import { CommandRegistry } from "./commands";
 import type { CommandResult } from "./commands";
-import type { QuickOpenResult, AnnotationResult } from "./search";
+import type {
+  QuickOpenResult,
+  AnnotationResult,
+  SearchRankingState,
+} from "./search";
 import type { SearchService } from "./search";
 import {
   getItemAbstractSnippetSafe,
@@ -67,6 +71,10 @@ export class PaletteUI {
   private recentClosedAttachmentIDs: number[] = [];
   private recentActivatedItemIDs: number[] = [];
   private recentSearches: string[] = [];
+  private rankingState: SearchRankingState = {
+    usageCounts: new Map<number, number>(),
+    recentItemIDs: [],
+  };
   private _savedQuery = "";
   private _savedScrollTop = 0;
   private _activeCollection: any = null;
@@ -203,7 +211,6 @@ export class PaletteUI {
   destroy(): void {
     this.doc.removeEventListener("mousedown", this.outsideClickHandler, true);
     this.doc.removeEventListener("keydown", this.keydownHandler, true);
-    this.searchService.destroy();
     this.root.remove();
     this.styleElement.remove();
   }
@@ -337,6 +344,7 @@ export class PaletteUI {
           this.win,
           resultsLimit * 2,
           collectionFilter,
+          this.rankingState,
         );
     if (token !== this.searchToken) {
       return;
@@ -442,7 +450,7 @@ export class PaletteUI {
     await this.actionHandler.openResult(result, intent);
     this.pushRecentActivated(result.id);
     if (intent !== "reveal") {
-      this.searchService.recordOpen(result.id);
+      this.recordOpen(result.id);
     }
     this.pushRecentSearch(this.currentQuery);
     this.hide();
@@ -2069,7 +2077,7 @@ export class PaletteUI {
             return;
           }
           await this.actionHandler.openAttachment(attachmentID, false);
-          this.searchService.recordOpen(attachmentID);
+          this.recordOpen(attachmentID);
           this.hide();
         },
       };
@@ -2092,7 +2100,7 @@ export class PaletteUI {
           return;
         }
         await this.actionHandler.openAttachment(attachmentID, false);
-        this.searchService.recordOpen(result.id);
+        this.recordOpen(result.id);
         this.pushRecentActivated(result.id);
         this.pushRecentSearch(this.currentQuery);
         this.hide();
@@ -2291,10 +2299,28 @@ export class PaletteUI {
     await this.actionHandler.openResult(result, intent);
     this.pushRecentActivated(result.id);
     if (intent !== "reveal") {
-      this.searchService.recordOpen(result.id);
+      this.recordOpen(result.id);
     }
     this.pushRecentSearch(this.currentQuery);
     this.hide();
+  }
+
+  private recordOpen(itemID: number): void {
+    if (!itemID || typeof itemID !== "number") {
+      return;
+    }
+    this.rankingState.usageCounts.set(
+      itemID,
+      (this.rankingState.usageCounts.get(itemID) || 0) + 1,
+    );
+    this.rankingState.recentItemIDs = this.rankingState.recentItemIDs.filter(
+      (id) => id !== itemID,
+    );
+    this.rankingState.recentItemIDs.unshift(itemID);
+    this.rankingState.recentItemIDs = this.rankingState.recentItemIDs.slice(
+      0,
+      80,
+    );
   }
 
   private async copyItemToClipboard(

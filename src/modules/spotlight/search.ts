@@ -11,6 +11,11 @@ import { getPref } from "../../utils/prefs";
 
 export type QuickOpenResult = ItemResult | AttachmentResult | AnnotationResult;
 
+export type SearchRankingState = {
+  usageCounts: Map<number, number>;
+  recentItemIDs: number[];
+};
+
 export type ResultKind = "item" | "attachment" | "annotation";
 export type ResultType = "item" | "note" | "pdf" | "annotation";
 
@@ -83,13 +88,17 @@ type ParsedQuery = {
 };
 
 export class SearchService {
-  private index: IndexedEntry[] = [];
-  private indexReady = false;
-  private indexStale = true;
-  private lastIndexedAt = 0;
+  private baseIndex: IndexedEntry[] = [];
+  private annotationIndex: IndexedEntry[] = [];
+  private baseIndexReady = false;
+  private annotationIndexReady = false;
+  private baseIndexStale = true;
+  private annotationIndexStale = true;
+  private lastBaseIndexedAt = 0;
+  private lastAnnotationIndexedAt = 0;
+  private baseIndexPromise: Promise<void> | null = null;
+  private annotationIndexPromise: Promise<void> | null = null;
   private notifierID: string | null = null;
-  private usageCounts = new Map<number, number>();
-  private recentItemIDs: number[] = [];
 
   constructor() {
     this.registerNotifier();
@@ -107,10 +116,15 @@ export class SearchService {
     win: Window,
     limit = 20,
     collectionFilter: any = null,
+    rankingState?: SearchRankingState,
   ): Promise<QuickOpenResult[]> {
     const parsedQuery = parseStructuredQuery(query);
     const activeLibraryID = this.getActiveLibraryID(win);
-    await this.ensureIndex();
+    await this.ensureBaseIndex();
+    const searchAnnotations = shouldSearchAnnotations(parsedQuery);
+    if (searchAnnotations) {
+      await this.ensureAnnotationIndex();
+    }
 
     // Build collection item ID set if filter is active
     let collectionItemIDs: Set<number> | null = null;
@@ -128,7 +142,10 @@ export class SearchService {
     }
 
     const results: QuickOpenResult[] = [];
-    for (const entry of this.index) {
+    const searchableEntries = searchAnnotations
+      ? [...this.baseIndex, ...this.annotationIndex]
+      : this.baseIndex;
+    for (const entry of searchableEntries) {
       if (!matchesFilters(entry, parsedQuery.filters)) {
         continue;
       }
@@ -142,8 +159,11 @@ export class SearchService {
       if (baseScore <= 0) {
         continue;
       }
-      const frequencyBoost = (this.usageCounts.get(entry.id) || 0) * 3;
-      const recencyBoost = this.getRecencyBoost(entry.id);
+      const frequencyBoost = (rankingState?.usageCounts.get(entry.id) || 0) * 3;
+      const recencyBoost = getRecencyBoost(
+        entry.id,
+        rankingState?.recentItemIDs,
+      );
       const libraryBoost =
         activeLibraryID !== null && activeLibraryID === entry.libraryID ? 6 : 0;
 
@@ -197,9 +217,6 @@ export class SearchService {
     const perCategoryLimit = parsedQuery.annotationOnly
       ? limit
       : Math.ceil(limit / 2);
-    const searchAnnotations =
-      (getPref as any)("searchAnnotations") !== false &&
-      (getPref as any)("searchAnnotations") !== null;
     const itemResults = parsedQuery.annotationOnly
       ? []
       : sorted
@@ -211,53 +228,65 @@ export class SearchService {
     return [...itemResults, ...annoResults];
   }
 
-  recordOpen(itemID: number): void {
-    if (!itemID || typeof itemID !== "number") {
-      return;
-    }
-    this.usageCounts.set(itemID, (this.usageCounts.get(itemID) || 0) + 1);
-    this.recentItemIDs = this.recentItemIDs.filter((id) => id !== itemID);
-    this.recentItemIDs.unshift(itemID);
-    this.recentItemIDs = this.recentItemIDs.slice(0, 80);
-  }
-
   async warmIndex(): Promise<void> {
-    await this.ensureIndex();
+    await this.ensureBaseIndex();
   }
 
-  private async ensureIndex(): Promise<void> {
+  private async ensureBaseIndex(): Promise<void> {
     const now = Date.now();
     if (
-      this.indexReady &&
-      !this.indexStale &&
-      now - this.lastIndexedAt < 300000
+      this.baseIndexReady &&
+      !this.baseIndexStale &&
+      now - this.lastBaseIndexedAt < 300000
     ) {
       return;
     }
-    this.index = await buildIndex();
-    this.indexReady = true;
-    this.indexStale = false;
-    this.lastIndexedAt = now;
+    if (!this.baseIndexPromise) {
+      this.baseIndexPromise = (async () => {
+        this.baseIndex = await buildBaseIndex();
+        this.baseIndexReady = true;
+        this.baseIndexStale = false;
+        this.lastBaseIndexedAt = Date.now();
+      })().finally(() => {
+        this.baseIndexPromise = null;
+      });
+    }
+    await this.baseIndexPromise;
+  }
+
+  private async ensureAnnotationIndex(): Promise<void> {
+    const now = Date.now();
+    if (
+      this.annotationIndexReady &&
+      !this.annotationIndexStale &&
+      now - this.lastAnnotationIndexedAt < 300000
+    ) {
+      return;
+    }
+    if (!this.annotationIndexPromise) {
+      this.annotationIndexPromise = (async () => {
+        this.annotationIndex = await buildAnnotationIndex();
+        this.annotationIndexReady = true;
+        this.annotationIndexStale = false;
+        this.lastAnnotationIndexedAt = Date.now();
+      })().finally(() => {
+        this.annotationIndexPromise = null;
+      });
+    }
+    await this.annotationIndexPromise;
   }
 
   private registerNotifier(): void {
     const callback = {
       notify: () => {
-        this.indexStale = true;
+        this.baseIndexStale = true;
+        this.annotationIndexStale = true;
       },
     };
     this.notifierID = Zotero.Notifier.registerObserver(callback, [
       "item",
       "file",
     ]);
-  }
-
-  private getRecencyBoost(itemID: number): number {
-    const index = this.recentItemIDs.indexOf(itemID);
-    if (index < 0) {
-      return 0;
-    }
-    return Math.max(0, 8 - index);
   }
 
   private getActiveLibraryID(win: Window): number | null {
@@ -272,7 +301,7 @@ export class SearchService {
   }
 }
 
-async function buildIndex(): Promise<IndexedEntry[]> {
+async function buildBaseIndex(): Promise<IndexedEntry[]> {
   const libraries = Zotero.Libraries.getAll();
   const entries: IndexedEntry[] = [];
   const parentsWithAttachment = new Set<number>();
@@ -378,117 +407,161 @@ async function buildIndex(): Promise<IndexedEntry[]> {
     }
   }
 
-  // --- ANNOTATION INDEX ---
-  const searchAnnotations =
-    (getPref as any)("searchAnnotations") !== false &&
-    (getPref as any)("searchAnnotations") !== null;
-  if (searchAnnotations) {
-    for (const library of libraries) {
-      const libraryKind =
-        (library as any).libraryType === "group" ? "group" : "user";
+  return entries;
+}
+
+async function buildAnnotationIndex(): Promise<IndexedEntry[]> {
+  const entries: IndexedEntry[] = [];
+  const libraryKinds = getLibraryKinds();
+  const attachmentItemCache = new Map<number, Zotero.Item | null>();
+  const parentItemCache = new Map<number, Zotero.Item | null>();
+  const parentMetaCache = new Map<
+    number,
+    { title: string; authors: string; year: number | null }
+  >();
+
+  try {
+    let annoRows: Array<{
+      aid: number;
+      pid: number;
+      cmt?: string;
+      col?: string;
+      pl?: string;
+      pos?: string;
+    }> = [];
+    let attRows: Array<{ iid: number; ppid: number }> = [];
+    let textRows: Array<{ tid: number; xxt?: string }> = [];
+    let keyRows: Array<{ iid: number; kkey?: string }> = [];
+    let annoKeyRows: Array<{ iid: number; kkey?: string }> = [];
+
+    await (Zotero.DB as any).executeTransaction(async () => {
+      annoRows =
+        ((await (Zotero.DB as any).queryAsync(
+          `SELECT itemID AS aid, parentItemID AS pid, comment AS cmt, color AS col, pageLabel AS pl, position AS pos FROM itemAnnotations`,
+        )) as typeof annoRows) || [];
+      if (!annoRows.length) {
+        return;
+      }
+      const pids = [...new Set(annoRows.map((row) => row.pid))].join(",");
+      const aids = annoRows.map((row) => row.aid).join(",");
+      attRows =
+        ((await (Zotero.DB as any).queryAsync(
+          `SELECT itemID AS iid, parentItemID AS ppid FROM itemAttachments WHERE itemID IN (${pids})`,
+        )) as typeof attRows) || [];
+      keyRows =
+        ((await (Zotero.DB as any).queryAsync(
+          `SELECT itemID AS iid, key AS kkey FROM items WHERE itemID IN (${pids})`,
+        )) as typeof keyRows) || [];
+      annoKeyRows =
+        ((await (Zotero.DB as any).queryAsync(
+          `SELECT itemID AS iid, key AS kkey FROM items WHERE itemID IN (${aids})`,
+        )) as typeof annoKeyRows) || [];
+      textRows =
+        ((await (Zotero.DB as any).queryAsync(
+          `SELECT itemID AS tid, text AS xxt FROM itemAnnotations WHERE text IS NOT NULL AND text != ''`,
+        )) as typeof textRows) || [];
+    });
+
+    if (!annoRows.length) {
+      return entries;
+    }
+
+    const textMap = new Map<number, string>();
+    for (const row of textRows) {
+      textMap.set(row.tid, row.xxt || "");
+    }
+    const attachmentKeyMap = new Map<number, string>();
+    for (const row of keyRows) {
+      attachmentKeyMap.set(row.iid, row.kkey || "");
+    }
+    const annotationKeyMap = new Map<number, string>();
+    for (const row of annoKeyRows) {
+      annotationKeyMap.set(row.iid, row.kkey || "");
+    }
+    const attachmentParentMap = new Map<number, number>();
+    for (const row of attRows) {
+      attachmentParentMap.set(row.iid, row.ppid);
+    }
+
+    for (const row of annoRows) {
       try {
-        let annoRows: any[],
-          attRows: any[],
-          textRows: any[],
-          keyRows: any[],
-          annoKeyRows: any[];
-        await (Zotero.DB as any).executeTransaction(async () => {
-          annoRows = await (Zotero.DB as any).queryAsync(
-            `SELECT itemID AS aid, parentItemID AS pid, comment AS cmt, color AS col, pageLabel AS pl, position AS pos FROM itemAnnotations`,
-          );
-          if (!annoRows || !annoRows.length) return;
-          const pids = [...new Set(annoRows.map((r: any) => r.pid))].join(",");
-          const aids = annoRows.map((r: any) => r.aid).join(",");
-          attRows = await (Zotero.DB as any).queryAsync(
-            `SELECT itemID AS iid, parentItemID AS ppid FROM itemAttachments WHERE itemID IN (${pids})`,
-          );
-          keyRows = await (Zotero.DB as any).queryAsync(
-            `SELECT itemID AS iid, key AS kkey FROM items WHERE itemID IN (${pids})`,
-          );
-          annoKeyRows = await (Zotero.DB as any).queryAsync(
-            `SELECT itemID AS iid, key AS kkey FROM items WHERE itemID IN (${aids})`,
-          );
-          textRows = await (Zotero.DB as any).queryAsync(
-            `SELECT itemID AS tid, text AS xxt FROM itemAnnotations WHERE text IS NOT NULL AND text != ''`,
-          );
-        });
-
-        if (!annoRows! || !annoRows!.length) continue;
-
-        const textMap = new Map<number, string>();
-        if (textRows!)
-          for (const r of textRows!) textMap.set(r.tid, r.xxt || "");
-        const keyMap = new Map<number, string>();
-        if (keyRows!) for (const r of keyRows!) keyMap.set(r.iid, r.kkey || "");
-        const annoKeyMap = new Map<number, string>();
-        if (annoKeyRows!)
-          for (const r of annoKeyRows!) annoKeyMap.set(r.iid, r.kkey || "");
-        const attMap = new Map<number, { ppid: number; akey: string }>();
-        if (attRows!)
-          for (const r of attRows!)
-            attMap.set(r.iid, { ppid: r.ppid, akey: keyMap.get(r.iid) || "" });
-
-        for (const row of annoRows!) {
-          try {
-            const att = attMap.get(row.pid);
-            if (!att) continue;
-            const attachmentID = row.pid;
-            const parentItem = Zotero.Items.get(att.ppid) as Zotero.Item;
-            if (!parentItem) continue;
-            const annotationText = textMap.get(row.aid) || "";
-            const annotationComment = row.cmt || "";
-            if (!annotationText && !annotationComment) continue;
-            const parentTitle = getItemTitleSafe(parentItem) || "";
-            const parentAuthors = getItemAuthorsSafe(parentItem) || "";
-            const pageLabel = row.pl || "";
-            let pageIndex = 0;
-            if (row.pos) {
-              try {
-                const pos = JSON.parse(row.pos);
-                if (typeof pos.pageIndex === "number")
-                  pageIndex = pos.pageIndex;
-              } catch (_) {}
-            }
-            const title = annotationText
-              ? annotationText.slice(0, 120)
-              : annotationComment.slice(0, 120);
-            const subtitle = `${parentTitle}${pageLabel ? ` · p. ${pageLabel}` : ""}`;
-
-            entries.push({
-              id: row.aid,
-              kind: "annotation",
-              resultType: "annotation",
-              title,
-              subtitle,
-              authors: parentAuthors,
-              tags: [],
-              abstractSnippet: annotationComment.slice(0, 120),
-              year: getItemYearNumber(parentItem),
-              libraryID: library.libraryID,
-              libraryKind,
-              annotationColor: row.col || "#ffd400",
-              annotationText,
-              annotationComment,
-              annotationParentTitle: parentTitle,
-              attachmentID,
-              attachmentKey: att.akey,
-              annoKey: annoKeyMap.get(row.aid) || "",
-              pageLabel,
-              pageIndex,
-              searchText: normalize(
-                `${annotationText} ${annotationComment} ${parentTitle} ${parentAuthors} ${pageLabel}`,
-              ),
-            });
-          } catch (err) {
-            ztoolkit.log("Spotlight skipped annotation", err);
-          }
+        const parentItemID = attachmentParentMap.get(row.pid);
+        if (!parentItemID) {
+          continue;
         }
+
+        const annotationText = textMap.get(row.aid) || "";
+        const annotationComment = row.cmt || "";
+        if (!annotationText && !annotationComment) {
+          continue;
+        }
+
+        let parentItem = parentItemCache.get(parentItemID);
+        if (parentItem === undefined) {
+          parentItem = (Zotero.Items.get(parentItemID) as Zotero.Item) || null;
+          parentItemCache.set(parentItemID, parentItem);
+        }
+        if (!parentItem) {
+          continue;
+        }
+
+        let attachmentItem = attachmentItemCache.get(row.pid);
+        if (attachmentItem === undefined) {
+          attachmentItem = (Zotero.Items.get(row.pid) as Zotero.Item) || null;
+          attachmentItemCache.set(row.pid, attachmentItem);
+        }
+
+        let parentMeta = parentMetaCache.get(parentItemID);
+        if (!parentMeta) {
+          parentMeta = {
+            title: getItemTitleSafe(parentItem) || "",
+            authors: getItemAuthorsSafe(parentItem) || "",
+            year: getItemYearNumber(parentItem),
+          };
+          parentMetaCache.set(parentItemID, parentMeta);
+        }
+
+        const pageLabel = row.pl || "";
+        const pageIndex = getAnnotationPageIndex(row.pos);
+        const title = annotationText
+          ? annotationText.slice(0, 120)
+          : annotationComment.slice(0, 120);
+        const subtitle = `${parentMeta.title}${pageLabel ? ` · p. ${pageLabel}` : ""}`;
+
+        entries.push({
+          id: row.aid,
+          kind: "annotation",
+          resultType: "annotation",
+          title,
+          subtitle,
+          authors: parentMeta.authors,
+          tags: [],
+          abstractSnippet: annotationComment.slice(0, 120),
+          year: parentMeta.year,
+          libraryID: getItemLibraryID(attachmentItem, parentItem),
+          libraryKind:
+            libraryKinds.get(getItemLibraryID(attachmentItem, parentItem)) ||
+            "user",
+          annotationColor: row.col || "#ffd400",
+          annotationText,
+          annotationComment,
+          annotationParentTitle: parentMeta.title,
+          attachmentID: row.pid,
+          attachmentKey: attachmentKeyMap.get(row.pid) || "",
+          annoKey: annotationKeyMap.get(row.aid) || "",
+          pageLabel,
+          pageIndex,
+          searchText: normalize(
+            `${annotationText} ${annotationComment} ${parentMeta.title} ${parentMeta.authors} ${pageLabel}`,
+          ),
+        });
       } catch (err) {
-        ztoolkit.log("Spotlight annotation index error", err);
+        ztoolkit.log("Spotlight skipped annotation", err);
       }
     }
+  } catch (err) {
+    ztoolkit.log("Spotlight annotation index error", err);
   }
-  // --- END ANNOTATION INDEX ---
 
   return entries;
 }
@@ -582,6 +655,44 @@ function getAttachmentParentItem(item: Zotero.Item): Zotero.Item | null {
     return topLevel;
   }
   return null;
+}
+
+function getLibraryKinds(): Map<number, "user" | "group"> {
+  const result = new Map<number, "user" | "group">();
+  for (const library of Zotero.Libraries.getAll()) {
+    result.set(
+      library.libraryID,
+      (library as any).libraryType === "group" ? "group" : "user",
+    );
+  }
+  return result;
+}
+
+function getAnnotationPageIndex(rawPosition?: string): number {
+  if (!rawPosition) {
+    return 0;
+  }
+  try {
+    const position = JSON.parse(rawPosition);
+    return typeof position.pageIndex === "number" ? position.pageIndex : 0;
+  } catch (_) {
+    return 0;
+  }
+}
+
+function getItemLibraryID(
+  attachmentItem: Zotero.Item | null,
+  parentItem: Zotero.Item,
+): number {
+  const attachmentLibraryID = (attachmentItem as any)?.libraryID;
+  if (typeof attachmentLibraryID === "number") {
+    return attachmentLibraryID;
+  }
+  const parentLibraryID = (parentItem as any)?.libraryID;
+  if (typeof parentLibraryID === "number") {
+    return parentLibraryID;
+  }
+  return Zotero.Libraries.userLibraryID;
 }
 
 function isSearchableAttachment(item: Zotero.Item): boolean {
@@ -749,6 +860,17 @@ function getAnnotationQueryBoost(
   return boost;
 }
 
+function getRecencyBoost(itemID: number, recentItemIDs?: number[]): number {
+  if (!recentItemIDs) {
+    return 0;
+  }
+  const index = recentItemIDs.indexOf(itemID);
+  if (index < 0) {
+    return 0;
+  }
+  return Math.max(0, 8 - index);
+}
+
 function tokenize(query: string): string[] {
   const matches = query.match(/(?:[^\s"]+|"[^"]*")+/g);
   return matches ? matches.map((token) => token.trim()).filter(Boolean) : [];
@@ -846,6 +968,16 @@ function matchesFilters(
     }
   }
   return true;
+}
+
+function shouldSearchAnnotations(query: ParsedQuery): boolean {
+  if (query.annotationOnly || query.filters.types.has("annotation")) {
+    return true;
+  }
+  return (
+    (getPref as any)("searchAnnotations") !== false &&
+    (getPref as any)("searchAnnotations") !== null
+  );
 }
 
 function normalize(value: string): string {
