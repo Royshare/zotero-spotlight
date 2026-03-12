@@ -14,10 +14,14 @@ export class WindowManager {
   private palettes = new Map<Window, PaletteUI>();
   private keyListeners = new Map<Window, (event: KeyboardEvent) => void>();
   private windowListener: WindowListener | null = null;
+  private searchService = new SearchService();
 
   start(): void {
     this.registerExistingWindows();
     this.registerWindowListener();
+    this.searchService.warmIndex().catch((error) => {
+      ztoolkit.log("Spotlight index warmup failed", error);
+    });
   }
 
   shutdown(): void {
@@ -25,6 +29,7 @@ export class WindowManager {
     for (const win of Array.from(this.palettes.keys())) {
       this.unregisterWindow(win);
     }
+    this.searchService.destroy();
   }
 
   registerWindow(win: Window): void {
@@ -34,11 +39,7 @@ export class WindowManager {
     if (!isSupportedWindow(win)) {
       return;
     }
-    const searchService = new SearchService();
-    const palette = new PaletteUI(win, searchService, new ActionHandler());
-    searchService.warmIndex().catch((error) => {
-      ztoolkit.log("Spotlight index warmup failed", error);
-    });
+    const palette = new PaletteUI(win, this.searchService, new ActionHandler());
     const handler = (event: KeyboardEvent) => {
       if (!isToggleEvent(event)) {
         return;
