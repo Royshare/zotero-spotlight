@@ -1704,7 +1704,7 @@ export class PaletteUI {
             ? "Recent searches, open tabs, and recently visited items appear here."
             : this.displayMode === "command"
               ? "Arrow through commands to inspect shortcuts and context before running them."
-              : "Try a broader query or use filters like `type:pdf` and `year:2024`.",
+              : "Try a broader query or use filters like `:pdf`, `#tag`, `y:2024`.",
         ),
       );
       return;
@@ -2944,11 +2944,11 @@ export class PaletteUI {
     label.textContent = "Filters:";
     this.filterHintBar.appendChild(label);
     const hints: Array<{ label: string; insert: string }> = [
-      { label: "type:pdf", insert: "type:pdf " },
-      { label: "type:note", insert: "type:note " },
-      { label: "tag:", insert: "tag:" },
-      { label: "year:", insert: "year:" },
-      { label: "@annotations", insert: "@" },
+      { label: ":pdf", insert: ":pdf " },
+      { label: ":note", insert: ":note " },
+      { label: "#tag", insert: "#" },
+      { label: "y:", insert: "y:" },
+      { label: "@", insert: "@" },
     ];
     for (const hint of hints) {
       const badge = this.createElement(
@@ -2983,14 +2983,21 @@ export class PaletteUI {
     const lastSpaceIdx = beforeCursor.lastIndexOf(" ");
     const tokenStart = lastSpaceIdx + 1;
     const currentToken = beforeCursor.slice(tokenStart);
-    for (const prefix of ["type:", "year:"]) {
-      if (currentToken.startsWith(prefix)) {
-        return {
-          prefix,
-          tokenStart,
-          partialValue: currentToken.slice(prefix.length),
-        };
-      }
+    // `:` prefix for type — token must start with `:` and have at least the colon
+    if (currentToken.startsWith(":")) {
+      return {
+        prefix: ":",
+        tokenStart,
+        partialValue: currentToken.slice(1),
+      };
+    }
+    // `y:` prefix for year
+    if (currentToken.toLowerCase().startsWith("y:")) {
+      return {
+        prefix: "y:",
+        tokenStart,
+        partialValue: currentToken.slice(2),
+      };
     }
     return null;
   }
@@ -3004,8 +3011,8 @@ export class PaletteUI {
     const typeValues = ["pdf", "note", "item", "annotation"];
     const yearValues = ["2024", "2023", "2020-2024", ">=2020", "<=2024"];
     let options: string[];
-    if (context.prefix === "type:") {
-      // Hide if value is already complete
+    if (context.prefix === ":") {
+      // Hide if value is already a complete known type
       if (typeValues.includes(context.partialValue)) {
         this.closeAutocomplete();
         return;

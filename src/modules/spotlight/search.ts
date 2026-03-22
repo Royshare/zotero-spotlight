@@ -762,20 +762,20 @@ function parseStructuredQuery(rawQuery: string): ParsedQuery {
       }
       continue;
     }
-    if (lower.startsWith("type:")) {
-      const parsedTypes = parseTypeFilter(token.slice(5));
-      parsedTypes.forEach((type) => types.add(type));
-      continue;
-    }
-    if (lower.startsWith("tag:")) {
-      const tagValue = normalize(unquoteToken(token.slice(4)));
+    if (token.startsWith("#")) {
+      const tagValue = normalize(unquoteToken(token.slice(1)));
       if (tagValue) {
         tags.push(tagValue);
       }
       continue;
     }
-    if (lower.startsWith("year:")) {
-      const yearRange = parseYearFilter(token.slice(5));
+    if (token.startsWith(":") && token.length > 1) {
+      const parsedTypes = parseTypeFilter(token.slice(1));
+      parsedTypes.forEach((type) => types.add(type));
+      continue;
+    }
+    if (lower.startsWith("y:")) {
+      const yearRange = parseYearFilter(token.slice(2));
       if (yearRange) {
         yearMin =
           typeof yearRange.min === "number"
