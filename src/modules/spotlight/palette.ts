@@ -79,6 +79,10 @@ export class PaletteUI {
   private _savedScrollTop = 0;
   private _activeCollection: any = null;
   private _sectionCollapsed: Record<string, boolean> = {};
+  private filterHintBar: HTMLDivElement | null = null;
+  private autocompleteDropdown: HTMLDivElement | null = null;
+  private autocompleteItems: Array<{ label: string; value: string }> = [];
+  private autocompleteSelectedIndex = -1;
 
   constructor(
     win: Window,
@@ -127,6 +131,13 @@ export class PaletteUI {
     this.collectionCheckbox?.addEventListener("change", () => {
       void this.updateResults(this.input.value);
     });
+    this.filterHintBar = this.root.querySelector(
+      "#zotero-spotlight-filter-hint-bar",
+    ) as HTMLDivElement | null;
+    this.autocompleteDropdown = this.root.querySelector(
+      "#zotero-spotlight-autocomplete",
+    ) as HTMLDivElement | null;
+    this.buildFilterHintBar();
     this.bindEvents();
     this.doc.addEventListener("mousedown", this.outsideClickHandler, true);
     this.doc.addEventListener("keydown", this.keydownHandler, true);
@@ -159,6 +170,8 @@ export class PaletteUI {
     const shouldRestore =
       !!(getPref as any)("restoreSearch") && this._savedQuery !== "";
     this.input.value = shouldRestore ? this._savedQuery : "";
+    this.updateFilterHintBar(this.input.value);
+    this.closeAutocomplete();
     this.results = [];
     this.selectedIndex = 0;
     this.panelMode = "preview";
@@ -205,6 +218,7 @@ export class PaletteUI {
     this._savedQuery = this.input.value;
     this._savedScrollTop = this.list.scrollTop;
     this.root.style.display = "none";
+    this.closeAutocomplete();
     this.updateBodyMode();
   }
 
@@ -217,12 +231,60 @@ export class PaletteUI {
 
   private bindEvents(): void {
     this.input.addEventListener("input", () => {
-      void this.updateResults(this.input.value);
+      const query = this.input.value;
+      void this.updateResults(query);
+      this.updateFilterHintBar(query);
+      this.updateAutocomplete(query, this.input.selectionStart ?? query.length);
     });
   }
 
   private handleKeydown(event: KeyboardEvent): void {
     if (!this.open) {
+      return;
+    }
+    // Autocomplete interception
+    const acOpen =
+      this.autocompleteDropdown?.style.display === "block" &&
+      this.autocompleteItems.length > 0;
+    if (acOpen) {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        this.autocompleteSelectedIndex = Math.min(
+          this.autocompleteSelectedIndex + 1,
+          this.autocompleteItems.length - 1,
+        );
+        this.renderAutocompleteSelection();
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        this.autocompleteSelectedIndex = Math.max(
+          this.autocompleteSelectedIndex - 1,
+          -1,
+        );
+        this.renderAutocompleteSelection();
+        return;
+      }
+      if (event.key === "Tab") {
+        event.preventDefault();
+        const idx =
+          this.autocompleteSelectedIndex >= 0
+            ? this.autocompleteSelectedIndex
+            : 0;
+        const item = this.autocompleteItems[idx];
+        if (item) {
+          this.insertAutocompleteValue(item.value);
+        }
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        this.closeAutocomplete();
+        return;
+      }
+    }
+    if (event.key === "Tab") {
+      event.preventDefault();
       return;
     }
     if (event.key === "Escape") {
@@ -714,7 +776,24 @@ export class PaletteUI {
       "spotlight-preview-panel",
     ) as HTMLDivElement;
     previewPanel.id = "zotero-spotlight-preview-panel";
+    // Filter hint bar (shown when input is empty)
+    const filterHintBar = this.createElement(
+      "div",
+      "spotlight-filter-hint-bar",
+    ) as HTMLDivElement;
+    filterHintBar.id = "zotero-spotlight-filter-hint-bar";
+
+    // Autocomplete dropdown (shown on colon-triggered filter token)
+    const autocompleteDropdown = this.createElement(
+      "div",
+      "spotlight-autocomplete",
+    ) as HTMLDivElement;
+    autocompleteDropdown.id = "zotero-spotlight-autocomplete";
+    autocompleteDropdown.style.display = "none";
+
     root.appendChild(input);
+    root.appendChild(autocompleteDropdown);
+    root.appendChild(filterHintBar);
     root.appendChild(collectionBar);
     root.appendChild(previewModeHeader);
     listPane.appendChild(list);
@@ -1150,6 +1229,74 @@ export class PaletteUI {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
   }
+}
+
+.spotlight-filter-hint-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.spotlight-filter-hint-label {
+  font-size: 11px;
+  color: var(--quick-open-muted);
+  margin-right: 2px;
+}
+
+.spotlight-filter-hint-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--quick-open-tag-bg);
+  color: var(--quick-open-tag-text);
+  font-size: 11px;
+  font-family: monospace;
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  line-height: 1.5;
+}
+
+.spotlight-filter-hint-badge:hover {
+  background: var(--quick-open-hover);
+  color: var(--quick-open-text);
+  border-color: var(--quick-open-border-soft);
+}
+
+.spotlight-autocomplete {
+  margin-top: 4px;
+  background: var(--quick-open-input-bg);
+  border: 1px solid var(--quick-open-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.spotlight-autocomplete-item {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--quick-open-text);
+}
+
+.spotlight-autocomplete-item:hover,
+.spotlight-autocomplete-item.is-selected {
+  background: var(--quick-open-hover);
+}
+
+.spotlight-autocomplete-prefix {
+  font-family: monospace;
+  color: var(--quick-open-muted);
+}
+
+.spotlight-autocomplete-value {
+  font-family: monospace;
+  font-weight: 600;
 }
 
 .spotlight-empty {
@@ -2786,6 +2933,161 @@ export class PaletteUI {
     this.recentSearches = this.recentSearches.filter(
       (entry) => entry !== query,
     );
+  }
+
+  // ── Filter hint bar (Option C) ──────────────────────────────────────────────
+
+  private buildFilterHintBar(): void {
+    if (!this.filterHintBar) return;
+    this.filterHintBar.textContent = "";
+    const label = this.createElement("span", "spotlight-filter-hint-label");
+    label.textContent = "Filters:";
+    this.filterHintBar.appendChild(label);
+    const hints: Array<{ label: string; insert: string }> = [
+      { label: "type:pdf", insert: "type:pdf " },
+      { label: "type:note", insert: "type:note " },
+      { label: "tag:", insert: "tag:" },
+      { label: "year:", insert: "year:" },
+      { label: "@annotations", insert: "@" },
+    ];
+    for (const hint of hints) {
+      const badge = this.createElement(
+        "button",
+        "spotlight-filter-hint-badge",
+      ) as HTMLButtonElement;
+      badge.textContent = hint.label;
+      badge.addEventListener("mousedown", (e) => {
+        e.preventDefault(); // keep input focused
+        this.input.value = hint.insert;
+        this.input.focus();
+        void this.updateResults(this.input.value);
+        this.updateFilterHintBar(this.input.value);
+        this.updateAutocomplete(this.input.value, this.input.value.length);
+      });
+      this.filterHintBar.appendChild(badge);
+    }
+  }
+
+  private updateFilterHintBar(query: string): void {
+    if (!this.filterHintBar) return;
+    this.filterHintBar.style.display = query.trim() === "" ? "flex" : "none";
+  }
+
+  // ── Colon-triggered autocomplete (Option A) ────────────────────────────────
+
+  private detectAutocompleteContext(
+    query: string,
+    cursorPos: number,
+  ): { prefix: string; tokenStart: number; partialValue: string } | null {
+    const beforeCursor = query.slice(0, cursorPos);
+    const lastSpaceIdx = beforeCursor.lastIndexOf(" ");
+    const tokenStart = lastSpaceIdx + 1;
+    const currentToken = beforeCursor.slice(tokenStart);
+    for (const prefix of ["type:", "year:"]) {
+      if (currentToken.startsWith(prefix)) {
+        return {
+          prefix,
+          tokenStart,
+          partialValue: currentToken.slice(prefix.length),
+        };
+      }
+    }
+    return null;
+  }
+
+  private updateAutocomplete(query: string, cursorPos: number): void {
+    const context = this.detectAutocompleteContext(query, cursorPos);
+    if (!context) {
+      this.closeAutocomplete();
+      return;
+    }
+    const typeValues = ["pdf", "note", "item", "annotation"];
+    const yearValues = ["2024", "2023", "2020-2024", ">=2020", "<=2024"];
+    let options: string[];
+    if (context.prefix === "type:") {
+      // Hide if value is already complete
+      if (typeValues.includes(context.partialValue)) {
+        this.closeAutocomplete();
+        return;
+      }
+      options = context.partialValue
+        ? typeValues.filter((v) => v.startsWith(context.partialValue))
+        : typeValues;
+    } else {
+      options = yearValues;
+    }
+    if (!options.length) {
+      this.closeAutocomplete();
+      return;
+    }
+    this.autocompleteItems = options.map((v) => ({ label: v, value: v }));
+    this.autocompleteSelectedIndex = -1;
+    this.renderAutocomplete(context.prefix);
+  }
+
+  private renderAutocomplete(prefix: string): void {
+    if (!this.autocompleteDropdown) return;
+    this.autocompleteDropdown.textContent = "";
+    this.autocompleteItems.forEach((item, i) => {
+      const el = this.createElement("div", "spotlight-autocomplete-item");
+      if (i === this.autocompleteSelectedIndex) {
+        el.classList.add("is-selected");
+      }
+      const prefixEl = this.createElement(
+        "span",
+        "spotlight-autocomplete-prefix",
+      );
+      prefixEl.textContent = prefix;
+      const valueEl = this.createElement(
+        "span",
+        "spotlight-autocomplete-value",
+      );
+      valueEl.textContent = item.label;
+      el.appendChild(prefixEl);
+      el.appendChild(valueEl);
+      el.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        this.autocompleteSelectedIndex = i;
+        this.insertAutocompleteValue(item.value);
+      });
+      this.autocompleteDropdown!.appendChild(el);
+    });
+    this.autocompleteDropdown.style.display = "block";
+  }
+
+  private renderAutocompleteSelection(): void {
+    if (!this.autocompleteDropdown) return;
+    const items = this.autocompleteDropdown.querySelectorAll(
+      ".spotlight-autocomplete-item",
+    );
+    items.forEach((el: Element, i: number) => {
+      el.classList.toggle("is-selected", i === this.autocompleteSelectedIndex);
+    });
+  }
+
+  private insertAutocompleteValue(value: string): void {
+    const cursor = this.input.selectionStart ?? this.input.value.length;
+    const context = this.detectAutocompleteContext(this.input.value, cursor);
+    if (!context) return;
+    const before = this.input.value.slice(0, context.tokenStart);
+    const after = this.input.value.slice(cursor).trimStart();
+    const newValue =
+      before + context.prefix + value + (after ? " " + after : " ");
+    this.input.value = newValue;
+    const newPos =
+      context.tokenStart + context.prefix.length + value.length + 1;
+    this.input.setSelectionRange(newPos, newPos);
+    this.closeAutocomplete();
+    void this.updateResults(this.input.value);
+    this.updateFilterHintBar(this.input.value);
+  }
+
+  private closeAutocomplete(): void {
+    if (this.autocompleteDropdown) {
+      this.autocompleteDropdown.style.display = "none";
+    }
+    this.autocompleteItems = [];
+    this.autocompleteSelectedIndex = -1;
   }
 }
 
