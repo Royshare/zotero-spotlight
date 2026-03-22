@@ -1238,6 +1238,7 @@ export class PaletteUI {
   flex-wrap: wrap;
   gap: 5px;
   margin-top: 8px;
+  padding-left: 6px;
 }
 
 .spotlight-filter-hint-label {
