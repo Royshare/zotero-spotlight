@@ -855,7 +855,8 @@ export class PaletteUI {
 }
 
 #zotero-spotlight-input {
-  width: calc(100% - 6px);
+  width: 100%;
+  margin: 0;
   box-sizing: border-box;
   border: 1px solid var(--quick-open-border);
   border-radius: 6px;
