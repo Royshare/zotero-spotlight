@@ -1247,6 +1247,10 @@ export class PaletteUI {
   margin-right: 2px;
 }
 
+.spotlight-filter-hint-label--commands {
+  margin-left: 10px;
+}
+
 .spotlight-filter-hint-badge {
   display: inline-flex;
   align-items: center;
@@ -2942,55 +2946,89 @@ export class PaletteUI {
   private buildFilterHintBar(): void {
     if (!this.filterHintBar) return;
     this.filterHintBar.textContent = "";
-    const label = this.createElement("span", "spotlight-filter-hint-label");
-    label.textContent = "Filters:";
-    this.filterHintBar.appendChild(label);
-    const hints: Array<{ label: string; insert: string; title: string }> = [
-      {
-        label: ":pdf",
-        insert: ":pdf ",
-        title: "Filter to PDF attachments only\nExample: :pdf Einstein",
-      },
-      {
-        label: ":note",
-        insert: ":note ",
-        title: "Filter to notes only\nExample: :note meeting",
-      },
-      {
-        label: "#tag",
-        insert: "#",
-        title:
-          "Filter by tag — type the tag name after #\nExample: #machine-learning",
-      },
-      {
-        label: "y:",
-        insert: "y:",
-        title:
-          "Filter by year — supports exact, range, and comparisons\nExamples: y:2024  y:2020-2024  y:>=2020",
-      },
-      {
-        label: "@",
-        insert: "@",
-        title: "Search annotations only\nExample: @ highlighted text in papers",
-      },
-    ];
-    for (const hint of hints) {
+
+    const makeBadge = (
+      label: string,
+      insert: string,
+      title: string,
+    ): HTMLButtonElement => {
       const badge = this.createElement(
         "button",
         "spotlight-filter-hint-badge",
       ) as HTMLButtonElement;
-      badge.textContent = hint.label;
-      badge.title = hint.title;
+      badge.textContent = label;
+      badge.title = title;
       badge.addEventListener("mousedown", (e) => {
         e.preventDefault(); // keep input focused
-        this.input.value = hint.insert;
+        this.input.value = insert;
         this.input.focus();
         void this.updateResults(this.input.value);
         this.updateFilterHintBar(this.input.value);
         this.updateAutocomplete(this.input.value, this.input.value.length);
       });
-      this.filterHintBar.appendChild(badge);
+      return badge;
+    };
+
+    // ── Filters group ────────────────────────────────────────────────────────
+    const filtersLabel = this.createElement(
+      "span",
+      "spotlight-filter-hint-label",
+    );
+    filtersLabel.textContent = "Filters:";
+    this.filterHintBar.appendChild(filtersLabel);
+
+    const filterHints: Array<{ label: string; insert: string; title: string }> =
+      [
+        {
+          label: ":pdf",
+          insert: ":pdf ",
+          title: "Filter to PDF attachments only\nExample: :pdf Einstein",
+        },
+        {
+          label: ":note",
+          insert: ":note ",
+          title: "Filter to notes only\nExample: :note meeting",
+        },
+        {
+          label: "#tag",
+          insert: "#",
+          title:
+            "Filter by tag — type the tag name after #\nExample: #machine-learning",
+        },
+        {
+          label: "y:",
+          insert: "y:",
+          title:
+            "Filter by year — supports exact, range, and comparisons\nExamples: y:2024  y:2020-2024  y:>=2020",
+        },
+        {
+          label: "@",
+          insert: "@",
+          title:
+            "Search annotations only\nExample: @ highlighted text in papers",
+        },
+      ];
+    for (const hint of filterHints) {
+      this.filterHintBar.appendChild(
+        makeBadge(hint.label, hint.insert, hint.title),
+      );
     }
+
+    // ── Commands group ───────────────────────────────────────────────────────
+    const commandsLabel = this.createElement(
+      "span",
+      "spotlight-filter-hint-label spotlight-filter-hint-label--commands",
+    );
+    commandsLabel.textContent = "Commands:";
+    this.filterHintBar.appendChild(commandsLabel);
+
+    this.filterHintBar.appendChild(
+      makeBadge(
+        ">",
+        "> ",
+        "Switch to command mode\nExample: > Open Tab by URL",
+      ),
+    );
   }
 
   private updateFilterHintBar(query: string): void {
