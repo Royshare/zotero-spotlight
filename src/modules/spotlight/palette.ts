@@ -2943,12 +2943,34 @@ export class PaletteUI {
     const label = this.createElement("span", "spotlight-filter-hint-label");
     label.textContent = "Filters:";
     this.filterHintBar.appendChild(label);
-    const hints: Array<{ label: string; insert: string }> = [
-      { label: ":pdf", insert: ":pdf " },
-      { label: ":note", insert: ":note " },
-      { label: "#tag", insert: "#" },
-      { label: "y:", insert: "y:" },
-      { label: "@", insert: "@" },
+    const hints: Array<{ label: string; insert: string; title: string }> = [
+      {
+        label: ":pdf",
+        insert: ":pdf ",
+        title: "Filter to PDF attachments only\nExample: :pdf Einstein",
+      },
+      {
+        label: ":note",
+        insert: ":note ",
+        title: "Filter to notes only\nExample: :note meeting",
+      },
+      {
+        label: "#tag",
+        insert: "#",
+        title:
+          "Filter by tag — type the tag name after #\nExample: #machine-learning",
+      },
+      {
+        label: "y:",
+        insert: "y:",
+        title:
+          "Filter by year — supports exact, range, and comparisons\nExamples: y:2024  y:2020-2024  y:>=2020",
+      },
+      {
+        label: "@",
+        insert: "@",
+        title: "Search annotations only\nExample: @ highlighted text in papers",
+      },
     ];
     for (const hint of hints) {
       const badge = this.createElement(
@@ -2956,6 +2978,7 @@ export class PaletteUI {
         "spotlight-filter-hint-badge",
       ) as HTMLButtonElement;
       badge.textContent = hint.label;
+      badge.title = hint.title;
       badge.addEventListener("mousedown", (e) => {
         e.preventDefault(); // keep input focused
         this.input.value = hint.insert;
