@@ -1,3 +1,5 @@
+import { createAICommands } from "./aiCommands";
+
 export type CommandContext = "main" | "reader" | "note";
 
 export interface CommandResult {
@@ -11,6 +13,29 @@ export interface CommandResult {
   group?: string;
 }
 
+export type StreamAction = {
+  label: string;
+  run: () => void | Promise<void>;
+};
+
+export type AIStreamHandle = {
+  /** Show the streaming panel with a title before the first chunk arrives. */
+  begin: (title: string) => void;
+  /** Append a text chunk to the streaming panel. */
+  append: (text: string) => void;
+  /** Signal streaming is done. Optionally supply a save action. */
+  end: (saveAction?: StreamAction) => void;
+  /** Display an error message in the streaming panel. */
+  error: (message: string) => void;
+  /** AbortSignal — aborted when the user presses Escape during streaming. */
+  signal: AbortSignal;
+};
+
+export type CommandRunOutcome = {
+  executed: boolean;
+  keepOpen: boolean;
+};
+
 export type SpotlightCommandDefinition = {
   id: string;
   title: string;
@@ -20,6 +45,8 @@ export type SpotlightCommandDefinition = {
   shortcut?: string;
   icon?: string;
   group?: string;
+  /** If true, text typed after the command keyword is passed as queryArgs. */
+  acceptsArgs?: boolean;
   isAvailable?: (context: CommandRunContext) => Availability;
   run: (context: CommandRunContext) => Promise<void>;
 };
@@ -29,12 +56,16 @@ type Availability = {
   reason?: string;
 };
 
-type CommandRunContext = {
+export type CommandRunContext = {
   win: Window;
   pane: _ZoteroTypes.ZoteroPane | null;
   mainWindow: _ZoteroTypes.MainWindow | null;
   context: CommandContext;
   activeItem: Zotero.Item | null;
+  /** Text typed after the command keyword. Populated for commands with acceptsArgs: true. */
+  queryArgs?: string;
+  /** Streaming output handle. Present when the command is expected to stream output. */
+  stream?: AIStreamHandle;
 };
 
 type SpotlightCommand = {
@@ -46,6 +77,7 @@ type SpotlightCommand = {
   shortcut?: string;
   icon?: string;
   group?: string;
+  acceptsArgs?: boolean;
   isAvailable: (context: CommandRunContext) => Availability;
   run: (context: CommandRunContext) => Promise<void>;
 };
@@ -120,15 +152,20 @@ export class CommandRegistry {
     return results.sort((a, b) => b.score - a.score).slice(0, limit);
   }
 
-  async run(commandId: string, win: Window): Promise<boolean> {
+  async run(
+    commandId: string,
+    win: Window,
+    queryArgs?: string,
+    streamHandle?: AIStreamHandle,
+  ): Promise<CommandRunOutcome> {
     const command = this.getCommands().find((entry) => entry.id === commandId);
     if (!command) {
-      return false;
+      return { executed: false, keepOpen: false };
     }
-    const runContext = this.getRunContext(win);
+    const runContext = this.getRunContext(win, queryArgs, streamHandle);
     const available = command.isAvailable(runContext);
     if (!available.enabled) {
-      return false;
+      return { executed: false, keepOpen: false };
     }
     try {
       await command.run(runContext);
@@ -136,14 +173,19 @@ export class CommandRegistry {
         command.id,
         (this.usageCounts.get(command.id) || 0) + 1,
       );
-      return true;
+      // AI commands that use a stream handle keep the palette open
+      return { executed: true, keepOpen: !!streamHandle };
     } catch (error) {
       ztoolkit.log(`Failed to run command: ${command.id}`, error);
-      return false;
+      return { executed: false, keepOpen: false };
     }
   }
 
-  private getRunContext(win: Window): CommandRunContext {
+  private getRunContext(
+    win: Window,
+    queryArgs?: string,
+    streamHandle?: AIStreamHandle,
+  ): CommandRunContext {
     const mainWindow = Zotero.getMainWindow() || null;
     const pane = this.getPane(mainWindow);
     return {
@@ -152,6 +194,8 @@ export class CommandRegistry {
       mainWindow,
       context: detectCommandContext(win),
       activeItem: this.getActiveItem(win, pane),
+      queryArgs,
+      stream: streamHandle,
     };
   }
 
@@ -551,6 +595,7 @@ export class CommandRegistry {
   private getCommands(): SpotlightCommand[] {
     return [
       ...this.builtInCommands,
+      ...createAICommands().map(normalizeExternalCommand),
       ...Array.from(CommandRegistry.externalCommands.values()),
     ];
   }
@@ -920,6 +965,7 @@ function normalizeExternalCommand(
     shortcut: command.shortcut,
     icon: command.icon,
     group: command.group,
+    acceptsArgs: command.acceptsArgs ?? false,
     isAvailable: command.isAvailable || (() => ({ enabled: true })),
     run: command.run,
   };

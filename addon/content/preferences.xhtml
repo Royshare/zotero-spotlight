@@ -131,6 +131,72 @@
     </hbox>
   </vbox>
   <vbox>
+    <label
+      class="zotero-spotlight-section-label"
+      data-l10n-id="pref-ai-section"
+    ></label>
+    <hbox align="center">
+      <html:input
+        type="checkbox"
+        id="zotero-prefpane-__addonRef__-ai-enabled"
+      />
+      <html:label
+        for="zotero-prefpane-__addonRef__-ai-enabled"
+        data-l10n-id="pref-ai-enabled"
+        style="margin-left: 6px"
+      ></html:label>
+    </hbox>
+    <hbox align="center" pack="start" style="margin-top: 8px">
+      <html:label
+        for="zotero-prefpane-__addonRef__-ai-provider"
+        data-l10n-id="pref-ai-provider"
+        style="min-width: 80px"
+      ></html:label>
+      <html:select id="zotero-prefpane-__addonRef__-ai-provider">
+        <html:option value="openai" data-l10n-id="pref-ai-provider-openai"></html:option>
+        <html:option value="ollama" data-l10n-id="pref-ai-provider-ollama"></html:option>
+      </html:select>
+    </hbox>
+    <hbox align="center" pack="start" style="margin-top: 4px">
+      <html:label
+        for="zotero-prefpane-__addonRef__-ai-model"
+        data-l10n-id="pref-ai-model"
+        style="min-width: 80px"
+      ></html:label>
+      <html:input
+        type="text"
+        id="zotero-prefpane-__addonRef__-ai-model"
+        placeholder="gpt-4o-mini"
+        style="flex: 1"
+      ></html:input>
+    </hbox>
+    <hbox align="center" pack="start" style="margin-top: 4px">
+      <html:label
+        for="zotero-prefpane-__addonRef__-ai-api-key"
+        data-l10n-id="pref-ai-api-key"
+        style="min-width: 80px"
+      ></html:label>
+      <html:input
+        type="password"
+        id="zotero-prefpane-__addonRef__-ai-api-key"
+        style="flex: 1"
+      ></html:input>
+    </hbox>
+    <hbox align="center" pack="start" style="margin-top: 4px">
+      <html:label
+        for="zotero-prefpane-__addonRef__-ai-base-url"
+        data-l10n-id="pref-ai-base-url"
+        style="min-width: 80px"
+      ></html:label>
+      <html:input
+        type="text"
+        id="zotero-prefpane-__addonRef__-ai-base-url"
+        data-l10n-id="pref-ai-base-url-placeholder"
+        style="flex: 1"
+      ></html:input>
+    </hbox>
+  </vbox>
+  <vbox>
     <html:button
       id="zotero-prefpane-__addonRef__-reset-defaults"
       data-l10n-id="pref-reset-defaults"

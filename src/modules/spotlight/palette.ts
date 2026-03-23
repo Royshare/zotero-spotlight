@@ -1,6 +1,11 @@
 import type { ActionHandler, OpenIntent } from "./actions";
 import { CommandRegistry } from "./commands";
-import type { CommandResult } from "./commands";
+import type {
+  AIStreamHandle,
+  CommandResult,
+  CommandRunOutcome,
+  StreamAction,
+} from "./commands";
 import type {
   QuickOpenResult,
   AnnotationResult,
@@ -83,6 +88,8 @@ export class PaletteUI {
   private autocompleteDropdown: HTMLDivElement | null = null;
   private autocompleteItems: Array<{ label: string; value: string }> = [];
   private autocompleteSelectedIndex = -1;
+  private isStreaming = false;
+  private activeAbortController: AbortController | null = null;
 
   constructor(
     win: Window,
@@ -289,6 +296,14 @@ export class PaletteUI {
     }
     if (event.key === "Escape") {
       event.preventDefault();
+      if (this.isStreaming) {
+        this.activeAbortController?.abort();
+        this.isStreaming = false;
+        this.activeAbortController = null;
+        this.body?.classList.remove("is-ai-streaming");
+        this.hide();
+        return;
+      }
       if (this.panelMode === "actions") {
         this.closeActionsPanel();
         return;
@@ -495,11 +510,14 @@ export class PaletteUI {
       return;
     }
     if (result.kind === "command") {
-      const executed = await this.commandRegistry.run(
+      const streamHandle = this.createStreamHandle();
+      const outcome: CommandRunOutcome = await this.commandRegistry.run(
         result.commandId,
         this.win,
+        this.currentQuery,
+        streamHandle,
       );
-      if (executed) {
+      if (outcome.executed && !outcome.keepOpen) {
         this.hide();
       }
       return;
@@ -2060,11 +2078,14 @@ export class PaletteUI {
           },
           hint: result.subtitle,
           run: async () => {
-            const executed = await this.commandRegistry.run(
+            const streamHandle = this.createStreamHandle();
+            const outcome: CommandRunOutcome = await this.commandRegistry.run(
               result.commandId,
               this.win,
+              this.currentQuery,
+              streamHandle,
             );
-            if (executed) {
+            if (outcome.executed && !outcome.keepOpen) {
               this.hide();
             }
           },
@@ -2810,6 +2831,120 @@ export class PaletteUI {
     }
     return null;
   }
+
+  // ── AI streaming ─────────────────────────────────────────────────────────────
+
+  private createStreamHandle(): AIStreamHandle {
+    const ctrl = new AbortController();
+    this.activeAbortController = ctrl;
+    return {
+      begin: (title) => this.enterAIStreamingMode(title),
+      append: (text) => this.appendAIStreamChunk(text),
+      end: (action) => this.exitAIStreamingMode(action),
+      error: (message) => this.showAIStreamError(message),
+      signal: ctrl.signal,
+    };
+  }
+
+  private enterAIStreamingMode(title: string): void {
+    this.isStreaming = true;
+    if (this.body) {
+      this.body.classList.add("is-panel-open", "is-ai-streaming");
+    }
+    if (this.previewModeHeader) {
+      this.previewModeHeader.style.display = "none";
+    }
+    this.previewPanel.textContent = "";
+    const shell = this.createElement(
+      "div",
+      "spotlight-preview-shell spotlight-ai-shell",
+    );
+    const header = this.createElement("div", "spotlight-ai-header");
+    header.textContent = title;
+    const thinking = this.createElement("div", "spotlight-ai-thinking");
+    thinking.id = "zotero-spotlight-ai-thinking";
+    thinking.textContent = "✦ Thinking…";
+    const output = this.createElement("pre", "spotlight-ai-output");
+    output.id = "zotero-spotlight-ai-output";
+    shell.appendChild(header);
+    shell.appendChild(thinking);
+    shell.appendChild(output);
+    this.previewPanel.appendChild(shell);
+  }
+
+  private appendAIStreamChunk(text: string): void {
+    const output = this.doc.getElementById("zotero-spotlight-ai-output");
+    if (!output) {
+      return;
+    }
+    const thinking = this.doc.getElementById("zotero-spotlight-ai-thinking");
+    if (thinking) {
+      thinking.style.display = "none";
+    }
+    output.textContent += text;
+  }
+
+  private exitAIStreamingMode(saveAction?: StreamAction): void {
+    this.isStreaming = false;
+    this.activeAbortController = null;
+    const shell = this.previewPanel.querySelector(".spotlight-ai-shell");
+    if (!shell) {
+      return;
+    }
+    const actions = this.createElement("div", "spotlight-ai-actions");
+    if (saveAction) {
+      const saveBtn = this.doc.createElementNS(
+        HTML_NS,
+        "button",
+      ) as HTMLButtonElement;
+      saveBtn.className = "spotlight-ai-action-btn";
+      saveBtn.textContent = saveAction.label;
+      saveBtn.addEventListener("click", () => {
+        const result = saveAction.run();
+        if (result instanceof Promise) {
+          result.catch((err: unknown) => {
+            ztoolkit.log("AI save action failed", err);
+          });
+        }
+        this.hide();
+      });
+      actions.appendChild(saveBtn);
+    }
+    const copyBtn = this.doc.createElementNS(
+      HTML_NS,
+      "button",
+    ) as HTMLButtonElement;
+    copyBtn.className = "spotlight-ai-action-btn";
+    copyBtn.textContent = "Copy";
+    copyBtn.addEventListener("click", () => {
+      const output = this.doc.getElementById("zotero-spotlight-ai-output");
+      if (output) {
+        this.copyTextToClipboard(output.textContent || "");
+      }
+      this.hide();
+    });
+    actions.appendChild(copyBtn);
+    shell.appendChild(actions);
+  }
+
+  private showAIStreamError(message: string): void {
+    this.isStreaming = false;
+    this.activeAbortController = null;
+    if (this.body) {
+      this.body.classList.add("is-panel-open", "is-ai-streaming");
+    }
+    this.previewPanel.textContent = "";
+    const shell = this.createElement(
+      "div",
+      "spotlight-preview-shell spotlight-ai-shell",
+    );
+    const error = this.createElement("div", "spotlight-ai-error");
+    error.textContent = message;
+    shell.appendChild(error);
+    this.previewPanel.appendChild(shell);
+  }
+
+  // ── Preferences ───────────────────────────────────────────────────────────────
 
   private getResultsLimit(): number {
     const raw = Number(getPref("resultsLimit"));

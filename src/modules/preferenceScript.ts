@@ -63,6 +63,40 @@ function syncPrefUI() {
   if (restoreCheckbox) {
     restoreCheckbox.checked = !!(getPref as any)("restoreSearch");
   }
+  syncAIPrefUI(doc);
+}
+
+function syncAIPrefUI(doc: Document): void {
+  const aiEnabledCheckbox = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-ai-enabled`,
+  ) as HTMLInputElement | null;
+  if (aiEnabledCheckbox) {
+    aiEnabledCheckbox.checked = !!getPref("aiEnabled");
+  }
+  const aiProviderSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-ai-provider`,
+  ) as HTMLSelectElement | null;
+  if (aiProviderSelect) {
+    aiProviderSelect.value = getPref("aiProvider") || "openai";
+  }
+  const aiModelInput = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-ai-model`,
+  ) as HTMLInputElement | null;
+  if (aiModelInput) {
+    aiModelInput.value = getPref("aiModel") || "";
+  }
+  const aiApiKeyInput = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-ai-api-key`,
+  ) as HTMLInputElement | null;
+  if (aiApiKeyInput) {
+    aiApiKeyInput.value = getPref("aiApiKey") || "";
+  }
+  const aiBaseUrlInput = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-ai-base-url`,
+  ) as HTMLInputElement | null;
+  if (aiBaseUrlInput) {
+    aiBaseUrlInput.value = getPref("aiBaseUrl") || "";
+  }
 }
 
 function bindPrefEvents() {
@@ -120,6 +154,40 @@ function bindPrefEvents() {
     (setPref as any)("searchAnnotations", true);
     (setPref as any)("restoreSearch", false);
     syncPrefUI();
+  });
+  bindAIPrefEvents(doc);
+}
+
+function bindAIPrefEvents(doc: Document): void {
+  const aiEnabledCheckbox = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-ai-enabled`,
+  ) as HTMLInputElement | null;
+  aiEnabledCheckbox?.addEventListener("change", () => {
+    setPref("aiEnabled", aiEnabledCheckbox.checked);
+  });
+  const aiProviderSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-ai-provider`,
+  ) as HTMLSelectElement | null;
+  aiProviderSelect?.addEventListener("change", () => {
+    setPref("aiProvider", aiProviderSelect.value);
+  });
+  const aiModelInput = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-ai-model`,
+  ) as HTMLInputElement | null;
+  aiModelInput?.addEventListener("change", () => {
+    setPref("aiModel", aiModelInput.value.trim());
+  });
+  const aiApiKeyInput = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-ai-api-key`,
+  ) as HTMLInputElement | null;
+  aiApiKeyInput?.addEventListener("change", () => {
+    setPref("aiApiKey", aiApiKeyInput.value.trim());
+  });
+  const aiBaseUrlInput = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-ai-base-url`,
+  ) as HTMLInputElement | null;
+  aiBaseUrlInput?.addEventListener("change", () => {
+    setPref("aiBaseUrl", aiBaseUrlInput.value.trim());
   });
 }
 

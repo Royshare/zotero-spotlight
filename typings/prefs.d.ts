@@ -9,6 +9,11 @@ declare namespace _ZoteroTypes {
     PluginPrefsMap: {
       "shortcutMode": string;
       "resultsLimit": number;
+      "aiEnabled": boolean;
+      "aiProvider": string;
+      "aiApiKey": string;
+      "aiBaseUrl": string;
+      "aiModel": string;
     };
   }
 }
