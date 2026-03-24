@@ -4,7 +4,7 @@ pref-shortcut-primary = { PLATFORM() ->
        *[other] Ctrl+P
     }
 pref-shortcut-fallback = { PLATFORM() ->
-        [macos] ⌘+Shift+P
+        [macos] ⌘+⇧+P
        *[other] Ctrl+Shift+P
     }
 pref-results-section = 结果限制
