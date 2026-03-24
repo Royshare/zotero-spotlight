@@ -441,13 +441,16 @@ export class CommandRegistry {
       {
         id: "extract-highlights",
         title: "Extract Highlights",
-        subtitle: "Create a note from PDF highlights and annotation comments",
+        subtitle:
+          "Create a note from PDF, EPUB, or Snapshot highlights and annotation comments",
         keywords: [
           "workflow",
           "extract highlights",
           "annotations",
           "highlights",
           "pdf",
+          "epub",
+          "snapshot",
         ],
         contexts: ["main", "reader", "note"],
         icon: "note",
@@ -466,10 +469,11 @@ export class CommandRegistry {
           if (!parent || !parent.isRegularItem()) {
             return { enabled: false, reason: "Select an item first" };
           }
-          if (!hasPdfAttachment(parent)) {
+          if (!hasRevealableAttachment(parent)) {
             return {
               enabled: false,
-              reason: "Current item does not have a PDF attachment",
+              reason:
+                "Current item does not have a PDF, EPUB, or Snapshot attachment",
             };
           }
           return { enabled: true };
@@ -479,7 +483,7 @@ export class CommandRegistry {
           if (!pane || !parent || !parent.isRegularItem()) {
             return;
           }
-          const attachmentID = await getBestPdfAttachmentID(parent);
+          const attachmentID = await getBestRevealableAttachmentID(parent);
           if (!attachmentID) {
             return;
           }
@@ -660,31 +664,6 @@ function getFirstCollectionID(item: Zotero.Item): number | null {
   return typeof collectionID === "number" ? collectionID : null;
 }
 
-async function getBestPdfAttachmentID(
-  item: Zotero.Item,
-): Promise<number | null> {
-  const candidate = item as any;
-  if (typeof candidate.getBestAttachment === "function") {
-    const best = await candidate.getBestAttachment();
-    if (typeof best === "number") {
-      const bestItem = Zotero.Items.get(best) as Zotero.Item;
-      return bestItem && isPDFAttachment(bestItem) ? best : null;
-    }
-    if (best?.id) {
-      const bestItem = Zotero.Items.get(best.id) as Zotero.Item;
-      return bestItem && isPDFAttachment(bestItem) ? (best.id as number) : null;
-    }
-  }
-  const attachmentIDs = candidate.getAttachments?.() || [];
-  for (const attachmentID of attachmentIDs) {
-    const attachment = Zotero.Items.get(attachmentID) as Zotero.Item;
-    if (attachment && isPDFAttachment(attachment)) {
-      return attachmentID;
-    }
-  }
-  return null;
-}
-
 async function getBestAttachmentID(item: Zotero.Item): Promise<number | null> {
   const candidate = item as any;
   if (typeof candidate.getBestAttachment === "function") {
@@ -803,6 +782,13 @@ function buildExtractHighlightsNoteContent(
   attachment: Zotero.Item,
 ): string {
   const title = escapeHTML(parent.getDisplayTitle?.() || "Untitled");
+  const sourceType = getAttachmentResultType(attachment);
+  const sourceTypeLabel =
+    sourceType === "item"
+      ? "Attachment"
+      : sourceType === "snapshot"
+        ? "Snapshot"
+        : sourceType.toUpperCase();
   const annotations = [...(attachment.getAnnotations?.() || [])]
     .filter((annotation) => {
       const text = annotation.annotationText?.trim() || "";
@@ -835,26 +821,14 @@ function buildExtractHighlightsNoteContent(
   return `
     <h1>Extracted highlights</h1>
     <h2>${title}</h2>
-    <p><strong>Source PDF</strong>: ${escapeHTML(
+    <p><strong>Source ${escapeHTML(sourceTypeLabel)}</strong>: ${escapeHTML(
       (attachment as any).attachmentFilename ||
         attachment.getDisplayTitle?.() ||
-        "PDF",
+        sourceTypeLabel,
     )}</p>
     <p><strong>Total annotations</strong>: ${annotations.length}</p>
     <ol>${entriesHTML}</ol>
   `;
-}
-
-function hasPdfAttachment(item: Zotero.Item): boolean {
-  const candidate = item as any;
-  const attachmentIDs = candidate.getAttachments?.() || [];
-  for (const attachmentID of attachmentIDs) {
-    const attachment = Zotero.Items.get(attachmentID) as Zotero.Item;
-    if (attachment && isPDFAttachment(attachment)) {
-      return true;
-    }
-  }
-  return false;
 }
 
 function hasRevealableAttachment(item: Zotero.Item): boolean {
@@ -889,16 +863,6 @@ async function revealAttachmentInFileManager(
     return;
   }
   await Zotero.File.reveal(filePath);
-}
-
-function isPDFAttachment(item: Zotero.Item): boolean {
-  const candidate = item as any;
-  if (typeof candidate.isPDFAttachment === "function") {
-    return !!candidate.isPDFAttachment();
-  }
-  const contentType =
-    candidate.attachmentContentType || candidate.attachmentMIMEType || "";
-  return String(contentType).toLowerCase().includes("pdf");
 }
 
 function shouldUseExternalHandler(

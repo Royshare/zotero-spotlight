@@ -528,18 +528,24 @@ export class PaletteUI {
     if (alternate === "reveal") {
       const attachmentID = result.attachmentID;
       if (typeof attachmentID === "number") {
+        const attachmentResult = this.createAttachmentResult(attachmentID);
         await this.actionHandler.openAttachment(attachmentID, false);
-        await this.actionHandler.openResult(
-          {
-            id: attachmentID,
-            kind: "attachment",
-            resultType: "pdf",
-            title: result.subtitle || "PDF",
-            subtitle: "PDF",
-            score: result.score,
-          },
-          "reveal",
-        );
+        if (attachmentResult) {
+          await this.actionHandler.openResult(attachmentResult, "reveal");
+        } else {
+          const sourceMeta = this.getAnnotationSourceMeta(result);
+          await this.actionHandler.openResult(
+            {
+              id: attachmentID,
+              kind: "attachment",
+              resultType: sourceMeta.resultType,
+              title: result.subtitle || sourceMeta.label,
+              subtitle: sourceMeta.label,
+              score: result.score,
+            },
+            "reveal",
+          );
+        }
       }
       return;
     }
@@ -1803,6 +1809,7 @@ export class PaletteUI {
     container: HTMLElement,
     result: AnnotationResult,
   ): void {
+    const sourceMeta = this.getAnnotationSourceMeta(result);
     const meta = [result.authors, result.year ? String(result.year) : ""]
       .filter(Boolean)
       .join(" - ");
@@ -1810,7 +1817,7 @@ export class PaletteUI {
       this.createPreviewHeader(
         "Annotation",
         result.subtitle || "Annotation result",
-        meta || "Jump directly to the matching annotation in the PDF reader.",
+        meta || "Jump directly to the matching annotation in the reader.",
       ),
     );
     this.appendPreviewChips(container, "spotlight-preview-meta", [
@@ -1818,7 +1825,7 @@ export class PaletteUI {
         label: result.pageLabel ? `Page ${result.pageLabel}` : "Annotation",
         color: result.annotationColor,
       },
-      { label: "PDF jump" },
+      { label: `${sourceMeta.label} jump` },
     ]);
     this.appendPreviewSection(container, "Matched text", result.title, true);
     if (result.abstractSnippet) {
@@ -2075,12 +2082,15 @@ export class PaletteUI {
       ];
     }
     if (result.kind === "annotation") {
+      const sourceMeta = this.getAnnotationSourceMeta(result);
+      const sourceLabel =
+        sourceMeta.label === "Attachment" ? "attachment" : sourceMeta.label;
       const actions: PanelAction[] = [
         {
           id: "open-annotation",
           label: "Open annotation",
           icon: this.getActionCommandIcon("annotate", "✦"),
-          hint: "Jump to the exact annotation in the PDF reader",
+          hint: "Jump to the exact annotation in the reader",
           run: async () => {
             await this.openAnnotation(result, "default");
             this.hide();
@@ -2088,12 +2098,12 @@ export class PaletteUI {
         },
         {
           id: "open-pdf-window",
-          label: "Open PDF in window",
+          label: `Open ${sourceMeta.label} in window`,
           icon: {
-            itemType: "attachmentPDF",
+            itemType: sourceMeta.itemType,
             text: "□",
           },
-          hint: "Open the source PDF in a separate reader window",
+          hint: `Open the source ${sourceLabel} in a separate reader window`,
           run: async () => {
             await this.openAnnotation(result, "alternate");
             this.hide();
@@ -2103,7 +2113,7 @@ export class PaletteUI {
           id: "reveal-attachment",
           label: "Reveal in library",
           icon: this.getActionCommandIcon("collection", "⌕"),
-          hint: "Select the source PDF in Zotero",
+          hint: `Select the source ${sourceLabel} in Zotero`,
           run: async () => {
             const attachmentResult = this.createAttachmentResult(
               result.attachmentID || 0,
@@ -2651,6 +2661,46 @@ export class PaletteUI {
       }
     }
     return false;
+  }
+
+  private getAnnotationSourceMeta(result: AnnotationResult): {
+    label: string;
+    itemType: string;
+    resultType: QuickOpenResult["resultType"];
+  } {
+    const attachmentID = result.attachmentID;
+    if (typeof attachmentID === "number") {
+      const attachment = Zotero.Items.get(attachmentID) as Zotero.Item | null;
+      if (attachment?.isAttachment?.()) {
+        const resultType = getAttachmentResultType(attachment);
+        if (resultType === "pdf") {
+          return {
+            label: "PDF",
+            itemType: "attachmentPDF",
+            resultType,
+          };
+        }
+        if (resultType === "epub") {
+          return {
+            label: "EPUB",
+            itemType: "attachmentEPUB",
+            resultType,
+          };
+        }
+        if (resultType === "snapshot") {
+          return {
+            label: "Snapshot",
+            itemType: "attachmentSnapshot",
+            resultType,
+          };
+        }
+      }
+    }
+    return {
+      label: "Attachment",
+      itemType: "attachment",
+      resultType: "item",
+    };
   }
 
   private getFileManagerLabel(): string {
