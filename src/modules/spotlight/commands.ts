@@ -279,10 +279,7 @@ export class CommandRegistry {
         subtitle: "Copy bibliography for selected/current item",
         keywords: ["quick copy", "reference", "bibliography", "clipboard"],
         contexts: ["main", "reader", "note"],
-        shortcut: getZoteroShortcut(
-          "keys.copySelectedItemsToClipboard",
-          "C",
-        ),
+        shortcut: getZoteroShortcut("keys.copySelectedItemsToClipboard", "C"),
         icon: "copy-bibliography",
         group: "Export",
         isAvailable: ({ pane, activeItem }) => {
