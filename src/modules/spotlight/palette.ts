@@ -222,10 +222,13 @@ export class PaletteUI {
 
   hide(): void {
     this.open = false;
+    this.isStreaming = false;
+    this.activeAbortController = null;
     this._savedQuery = this.input.value;
     this._savedScrollTop = this.list.scrollTop;
     this.root.style.display = "none";
     this.closeAutocomplete();
+    this.body?.classList.remove("is-ai-streaming");
     this.updateBodyMode();
   }
 
@@ -510,7 +513,8 @@ export class PaletteUI {
       return;
     }
     if (result.kind === "command") {
-      const streamHandle = this.createStreamHandle();
+      const streamHandle =
+        result.group === "AI" ? this.createStreamHandle() : undefined;
       const outcome: CommandRunOutcome = await this.commandRegistry.run(
         result.commandId,
         this.win,
@@ -2078,7 +2082,8 @@ export class PaletteUI {
           },
           hint: result.subtitle,
           run: async () => {
-            const streamHandle = this.createStreamHandle();
+            const streamHandle =
+              result.group === "AI" ? this.createStreamHandle() : undefined;
             const outcome: CommandRunOutcome = await this.commandRegistry.run(
               result.commandId,
               this.win,
