@@ -54,8 +54,23 @@ Zotero Spotlight aims to become a universal command surface inside Zotero: avail
 - [x] Expose a command API so other Zotero plugins can register Spotlight actions
 - [x] Grow Spotlight into a shared command surface for the wider plugin ecosystem
 
+## Phase 10 — LLM-Assisted Commands
+
+- [x] Provider abstraction with OpenAI-compatible streaming (covers OpenAI, Ollama, Azure OpenAI)
+- [x] `>ask [question]` — stream an answer about the active paper into the preview panel
+- [x] `>summarize` — stream a 3-5 sentence summary of abstract + annotations
+- [x] `>draft note` — draft a structured reading note; save-as-note action
+- [x] Streaming output in preview panel with "Thinking…" indicator, Save and Copy actions
+- [x] Escape cancels in-flight stream via AbortController
+- [x] Graceful error states (no API key, network failure)
+- [x] AI preferences: enable toggle, provider, model, API key, base URL
+
 ## Future Directions
 
-- AI-assisted commands for summarization, note drafting, and paper comparison
+- `>explain [term]` — explain a technical concept in context of this paper
+- `>suggest tags` — suggest Zotero tags with one-click apply
+- `>find related` — semantic similarity search over local library
+- `>compare` — compare two selected items side-by-side
+- Semantic search mode (natural language queries without `>` prefix)
 - Better onboarding for filters and advanced search syntax
 - Deeper integrations with other Zotero plugins through the command API

@@ -173,8 +173,7 @@ export class CommandRegistry {
         command.id,
         (this.usageCounts.get(command.id) || 0) + 1,
       );
-      // AI commands that use a stream handle keep the palette open
-      return { executed: true, keepOpen: !!streamHandle };
+      return { executed: true, keepOpen: false };
     } catch (error) {
       ztoolkit.log(`Failed to run command: ${command.id}`, error);
       return { executed: false, keepOpen: false };

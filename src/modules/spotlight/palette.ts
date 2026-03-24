@@ -517,7 +517,7 @@ export class PaletteUI {
         this.currentQuery,
         streamHandle,
       );
-      if (outcome.executed && !outcome.keepOpen) {
+      if (outcome.executed && !this.isStreaming) {
         this.hide();
       }
       return;
@@ -2085,7 +2085,7 @@ export class PaletteUI {
               this.currentQuery,
               streamHandle,
             );
-            if (outcome.executed && !outcome.keepOpen) {
+            if (outcome.executed && !this.isStreaming) {
               this.hide();
             }
           },
