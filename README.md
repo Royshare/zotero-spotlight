@@ -29,7 +29,7 @@ Spotlight is different:
 ## Features
 
 - Open Spotlight with one shortcut: `Cmd+P` on macOS, `Ctrl+P` on Windows/Linux.
-- Works in the main Zotero window, PDF reader, and note editor.
+- Works in the main Zotero window, reader, and note editor.
 
 ### 1. Search, Switch, Filter
 
@@ -42,7 +42,7 @@ Spotlight is different:
 
 ### 2. Commands and Workflows
 
-- Use `>` to enter command mode for built-in actions like `New Note`, `Copy Citation`, `Copy Bibliography`, `Open Collection`, and `Show PDF in Finder/Explorer`.
+- Use `>` to enter command mode for built-in actions like `New Note`, `Copy Citation`, `Copy Bibliography`, `Open Collection`, and `Show PDF/EPUB/Snapshot in Finder/Explorer`.
 - Run reusable workflows like `>literature note` and `>extract highlights` for common research tasks.
 - Use `>tabs` to search and switch across currently open Zotero tabs.
 - Trigger context-aware commands based on the current Zotero window and selected item.
