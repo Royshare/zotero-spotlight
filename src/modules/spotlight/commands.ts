@@ -2,6 +2,12 @@ import {
   getAttachmentResultType,
   type AttachmentResultType,
 } from "./itemMetadata";
+import {
+  getBestOpenableAttachmentID,
+  getAttachmentTypeMeta,
+  getParentForCommand,
+  isOpenableAttachment,
+} from "./attachmentHelpers";
 
 export type CommandContext = "main" | "reader" | "note";
 
@@ -633,25 +639,6 @@ function getCollectionTarget(item: Zotero.Item | null): Zotero.Item | null {
   return getParentForCommand(item);
 }
 
-function getParentForCommand(item: Zotero.Item | null): Zotero.Item | null {
-  if (!item) {
-    return null;
-  }
-  if (item.isRegularItem()) {
-    return item;
-  }
-  const candidate = item as any;
-  const parentID = candidate.parentID ?? candidate.parentItemID;
-  if (typeof parentID === "number") {
-    return Zotero.Items.get(parentID) as Zotero.Item;
-  }
-  const topLevel = candidate.topLevelItem as Zotero.Item | undefined;
-  if (topLevel && topLevel.id && topLevel.id !== item.id) {
-    return topLevel;
-  }
-  return item;
-}
-
 function getFirstCollectionID(item: Zotero.Item): number | null {
   const collections = item.getCollections?.();
   if (!collections || !collections.length) {
@@ -687,28 +674,7 @@ async function getBestAttachmentID(item: Zotero.Item): Promise<number | null> {
 async function getBestRevealableAttachmentID(
   item: Zotero.Item,
 ): Promise<number | null> {
-  const candidate = item as any;
-  if (typeof candidate.getBestAttachment === "function") {
-    const best = await candidate.getBestAttachment();
-    if (typeof best === "number") {
-      const bestItem = Zotero.Items.get(best) as Zotero.Item;
-      return bestItem && isRevealableAttachment(bestItem) ? best : null;
-    }
-    if (best?.id) {
-      const bestItem = Zotero.Items.get(best.id) as Zotero.Item;
-      return bestItem && isRevealableAttachment(bestItem)
-        ? (best.id as number)
-        : null;
-    }
-  }
-  const attachmentIDs = candidate.getAttachments?.() || [];
-  for (const attachmentID of attachmentIDs) {
-    const attachment = Zotero.Items.get(attachmentID) as Zotero.Item;
-    if (attachment && isRevealableAttachment(attachment)) {
-      return attachmentID;
-    }
-  }
-  return null;
+  return getBestOpenableAttachmentID(item);
 }
 
 async function createChildNote(
@@ -780,12 +746,7 @@ function buildExtractHighlightsNoteContent(
 ): string {
   const title = escapeHTML(parent.getDisplayTitle?.() || "Untitled");
   const sourceType = getAttachmentResultType(attachment);
-  const sourceTypeLabel =
-    sourceType === "item"
-      ? "Attachment"
-      : sourceType === "snapshot"
-        ? "Snapshot"
-        : sourceType.toUpperCase();
+  const sourceTypeLabel = getAttachmentTypeMeta(sourceType).label;
   const annotations = [...(attachment.getAnnotations?.() || [])]
     .filter((annotation) => {
       const text = annotation.annotationText?.trim() || "";
@@ -833,16 +794,11 @@ function hasRevealableAttachment(item: Zotero.Item): boolean {
   const attachmentIDs = candidate.getAttachments?.() || [];
   for (const attachmentID of attachmentIDs) {
     const attachment = Zotero.Items.get(attachmentID) as Zotero.Item;
-    if (attachment && isRevealableAttachment(attachment)) {
+    if (attachment && isOpenableAttachment(attachment)) {
       return true;
     }
   }
   return false;
-}
-
-function isRevealableAttachment(item: Zotero.Item): boolean {
-  const type = getAttachmentResultType(item);
-  return type === "pdf" || type === "epub" || type === "snapshot";
 }
 
 async function revealAttachmentInFileManager(
@@ -862,7 +818,7 @@ async function revealAttachmentInFileManager(
   await Zotero.File.reveal(filePath);
 }
 
-function shouldUseExternalHandler(
+export function shouldUseExternalHandler(
   attachmentType: AttachmentResultType,
 ): boolean {
   const prefKey =

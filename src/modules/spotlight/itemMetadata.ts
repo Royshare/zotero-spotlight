@@ -136,10 +136,6 @@ export function getAttachmentResultType(
   return "item";
 }
 
-export function isPDFAttachment(item: Zotero.Item): boolean {
-  return getAttachmentResultType(item) === "pdf";
-}
-
 function safeGetField(
   item: Zotero.Item,
   field: string,
