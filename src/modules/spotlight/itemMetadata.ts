@@ -100,14 +100,44 @@ export function getItemNoteSnippetSafe(
   }
 }
 
-export function isPDFAttachment(item: Zotero.Item): boolean {
+export type AttachmentResultType = "item" | "pdf" | "epub" | "snapshot";
+
+export function getAttachmentResultType(
+  item: Zotero.Item,
+): AttachmentResultType {
   const candidate = item as any;
   if (typeof candidate.isPDFAttachment === "function") {
-    return !!candidate.isPDFAttachment();
+    if (candidate.isPDFAttachment()) {
+      return "pdf";
+    }
   }
-  const contentType =
-    candidate.attachmentContentType || candidate.attachmentMIMEType || "";
-  return String(contentType).toLowerCase().includes("pdf");
+  const contentType = String(
+    candidate.attachmentContentType || candidate.attachmentMIMEType || "",
+  ).toLowerCase();
+  if (contentType.includes("pdf")) {
+    return "pdf";
+  }
+  if (typeof candidate.isEPUBAttachment === "function") {
+    if (candidate.isEPUBAttachment()) {
+      return "epub";
+    }
+  }
+  if (typeof candidate.isSnapshotAttachment === "function") {
+    if (candidate.isSnapshotAttachment()) {
+      return "snapshot";
+    }
+  }
+  if (contentType.includes("epub")) {
+    return "epub";
+  }
+  if (contentType.includes("html") || contentType.includes("xhtml")) {
+    return "snapshot";
+  }
+  return "item";
+}
+
+export function isPDFAttachment(item: Zotero.Item): boolean {
+  return getAttachmentResultType(item) === "pdf";
 }
 
 function safeGetField(

@@ -1,11 +1,11 @@
 import {
+  getAttachmentResultType,
   getItemAbstractSnippetSafe,
   getItemAuthorsSafe,
   getItemSubtitleSafe,
   getItemTagsSafe,
   getItemTitleSafe,
   getItemYearSafe,
-  isPDFAttachment,
 } from "./itemMetadata";
 import { getPref } from "../../utils/prefs";
 
@@ -17,7 +17,13 @@ export type SearchRankingState = {
 };
 
 export type ResultKind = "item" | "attachment" | "annotation";
-export type ResultType = "item" | "note" | "pdf" | "annotation";
+export type ResultType =
+  | "item"
+  | "note"
+  | "pdf"
+  | "epub"
+  | "snapshot"
+  | "annotation";
 
 export interface BaseResult {
   id: number;
@@ -387,7 +393,7 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
           entries.push({
             id: item.id,
             kind: "attachment",
-            resultType: isPDFAttachment(item) ? "pdf" : "item",
+            resultType: getAttachmentResultType(item),
             title,
             subtitle,
             authors,
@@ -897,6 +903,8 @@ function parseTypeFilter(rawValue: string): ResultType[] {
   for (const entry of values) {
     if (
       entry === "pdf" ||
+      entry === "epub" ||
+      entry === "snapshot" ||
       entry === "note" ||
       entry === "item" ||
       entry === "annotation"

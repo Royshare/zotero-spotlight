@@ -8,6 +8,7 @@ import type {
 } from "./search";
 import type { SearchService } from "./search";
 import {
+  getAttachmentResultType,
   getItemAbstractSnippetSafe,
   getItemAuthorsSafe,
   getItemNoteSnippetSafe,
@@ -371,7 +372,9 @@ export class PaletteUI {
               "PDF"
             : item.getDisplayTitle?.() || "Untitled",
           subtitle: item.isAttachment?.() ? "PDF" : "Item",
-          resultType: item.isAttachment?.() ? "pdf" : "item",
+          resultType: item.isAttachment?.()
+            ? getAttachmentResultType(item as Zotero.Item)
+            : "item",
           libraryKind: "user",
           score: 10,
         });
@@ -1609,7 +1612,7 @@ export class PaletteUI {
     return {
       id: attachmentID,
       kind: "attachment",
-      resultType: isPDFAttachment(attachment) ? "pdf" : "item",
+      resultType: getAttachmentResultType(attachment),
       title: title || "Attachment",
       subtitle,
       score: 0,
@@ -2076,10 +2079,7 @@ export class PaletteUI {
         {
           id: "open-annotation",
           label: "Open annotation",
-          icon: {
-            url: "chrome://zotero/skin/16/universal/annotate-highlight.svg",
-            text: "✦",
-          },
+          icon: this.getActionCommandIcon("annotate", "✦"),
           hint: "Jump to the exact annotation in the PDF reader",
           run: async () => {
             await this.openAnnotation(result, "default");
@@ -2102,10 +2102,7 @@ export class PaletteUI {
         {
           id: "reveal-attachment",
           label: "Reveal in library",
-          icon: {
-            url: "chrome://zotero/skin/16/universal/library-collection.svg",
-            text: "⌕",
-          },
+          icon: this.getActionCommandIcon("collection", "⌕"),
           hint: "Select the source PDF in Zotero",
           run: async () => {
             const attachmentResult = this.createAttachmentResult(
@@ -2131,16 +2128,17 @@ export class PaletteUI {
     const actions: PanelAction[] = [
       {
         id: "open-default",
-        label: result.resultType === "pdf" ? "Open PDF" : "Open",
+        label: this.getDefaultOpenActionLabel(result.resultType),
         icon:
           result.resultType === "pdf"
             ? { itemType: "attachmentPDF", text: "↗" }
             : result.resultType === "note"
-              ? {
-                  url: "chrome://zotero/skin/16/universal/note.svg",
-                  text: "↵",
-                }
-              : { itemType: "document", text: "↵" },
+              ? this.getActionCommandIcon("note", "↵")
+              : result.resultType === "epub"
+                ? { itemType: "attachmentEPUB", text: "↗" }
+                : result.resultType === "snapshot"
+                  ? { itemType: "attachmentSnapshot", text: "↗" }
+                  : { itemType: "document", text: "↵" },
         hint: "Open the selected result",
         run: async () => {
           await this.finishQuickOpen(result, "default");
@@ -2149,10 +2147,7 @@ export class PaletteUI {
       {
         id: "reveal-item",
         label: "Reveal in library",
-        icon: {
-          url: "chrome://zotero/skin/16/universal/library-collection.svg",
-          text: "⌕",
-        },
+        icon: this.getActionCommandIcon("collection", "⌕"),
         hint: "Select this item in the Zotero main pane",
         run: async () => {
           await this.finishQuickOpen(result, "reveal");
@@ -2161,13 +2156,22 @@ export class PaletteUI {
       {
         id: "open-alternate",
         label:
-          result.resultType === "pdf" || result.resultType === "note"
+          result.resultType === "pdf" ||
+          result.resultType === "note" ||
+          result.resultType === "epub" ||
+          result.resultType === "snapshot"
             ? "Open in new window"
             : "Open in alternate mode",
         icon:
           result.resultType === "pdf"
             ? { itemType: "attachmentPDF", text: "□" }
-            : { itemType: "document", text: "□" },
+            : result.resultType === "epub"
+              ? { itemType: "attachmentEPUB", text: "□" }
+              : result.resultType === "snapshot"
+                ? { itemType: "attachmentSnapshot", text: "□" }
+                : result.resultType === "note"
+                  ? this.getActionCommandIcon("note", "□")
+                  : { itemType: "document", text: "□" },
         hint: "Use the alternate open behavior",
         run: async () => {
           await this.finishQuickOpen(result, "alternate");
@@ -2175,7 +2179,10 @@ export class PaletteUI {
       },
     ].filter((action) =>
       action.id === "open-alternate"
-        ? result.resultType === "pdf" || result.resultType === "note"
+        ? result.resultType === "pdf" ||
+          result.resultType === "note" ||
+          result.resultType === "epub" ||
+          result.resultType === "snapshot"
         : true,
     );
 
@@ -2333,7 +2340,7 @@ export class PaletteUI {
       return {
         id: "copy-annotation-content",
         label: "Copy Content",
-        icon: this.getActionCommandIcon("copy-citation", "C"),
+        icon: this.getActionCommandIcon("annotate", "C"),
         run: async () => {
           this.copyTextToClipboard(content);
           this.hide();
@@ -2354,7 +2361,7 @@ export class PaletteUI {
     return {
       id: "copy-note-content",
       label: "Copy Content",
-      icon: this.getActionCommandIcon("copy-citation", "C"),
+      icon: this.getActionCommandIcon("note", "C"),
       run: async () => {
         this.copyTextToClipboard(content);
         this.hide();
@@ -2370,10 +2377,7 @@ export class PaletteUI {
       return {
         id: "reveal-pdf-file",
         label,
-        icon: {
-          url: "chrome://zotero/skin/16/universal/library-collection.svg",
-          text: "⌕",
-        },
+        icon: this.getActionCommandIcon("show-file", "⌕"),
         run: async () => {
           await this.actionHandler.revealAttachmentFile(result.id);
           this.hide();
@@ -2387,10 +2391,7 @@ export class PaletteUI {
       return {
         id: "reveal-annotation-pdf-file",
         label,
-        icon: {
-          url: "chrome://zotero/skin/16/universal/library-collection.svg",
-          text: "⌕",
-        },
+        icon: this.getActionCommandIcon("show-file", "⌕"),
         run: async () => {
           await this.actionHandler.revealAttachmentFile(result.attachmentID!);
           this.hide();
@@ -2406,10 +2407,7 @@ export class PaletteUI {
       return {
         id: "reveal-parent-pdf-file",
         label,
-        icon: {
-          url: "chrome://zotero/skin/16/universal/library-collection.svg",
-          text: "⌕",
-        },
+        icon: this.getActionCommandIcon("show-file", "⌕"),
         run: async () => {
           const attachmentID = await this.getPrimaryAttachmentID(parent.id);
           if (!attachmentID) {
@@ -2430,10 +2428,7 @@ export class PaletteUI {
     return {
       id: "reveal-item-pdf-file",
       label,
-      icon: {
-        url: "chrome://zotero/skin/16/universal/library-collection.svg",
-        text: "⌕",
-      },
+      icon: this.getActionCommandIcon("show-file", "⌕"),
       run: async () => {
         const attachmentID = await this.getPrimaryAttachmentID(result.id);
         if (!attachmentID) {
@@ -2849,6 +2844,12 @@ export class PaletteUI {
     if (iconName === "collection") {
       return "chrome://zotero/skin/16/universal/library-collection.svg";
     }
+    if (iconName === "show-file") {
+      return "chrome://zotero/skin/16/universal/folder-open.svg";
+    }
+    if (iconName === "annotate") {
+      return "chrome://zotero/skin/16/universal/annotate-highlight.svg";
+    }
     return null;
   }
 
@@ -2906,10 +2907,34 @@ export class PaletteUI {
     if (type === "note") {
       return "NOTE";
     }
+    if (type === "epub") {
+      return "EPUB";
+    }
+    if (type === "snapshot") {
+      return "SNAPSHOT";
+    }
     if (type === "annotation") {
       return "ANNO";
     }
     return "ITEM";
+  }
+
+  private getDefaultOpenActionLabel(
+    type: QuickOpenResult["resultType"],
+  ): string {
+    if (type === "pdf") {
+      return "Open PDF";
+    }
+    if (type === "note") {
+      return "Open Note";
+    }
+    if (type === "epub") {
+      return "Open EPUB";
+    }
+    if (type === "snapshot") {
+      return "Open Snapshot";
+    }
+    return "Open";
   }
 
   private pushRecentActivated(itemID: number): void {
@@ -3071,7 +3096,14 @@ export class PaletteUI {
       this.closeAutocomplete();
       return;
     }
-    const typeValues = ["pdf", "note", "item", "annotation"];
+    const typeValues = [
+      "pdf",
+      "epub",
+      "snapshot",
+      "note",
+      "item",
+      "annotation",
+    ];
     const yearValues = ["2024", "2023", "2020-2024", ">=2020", "<=2024"];
     let options: string[];
     if (context.prefix === ":") {
