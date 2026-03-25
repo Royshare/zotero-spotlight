@@ -1,6 +1,12 @@
 pref-shortcut-section = Shortcuts
-pref-shortcut-primary = Cmd+P (MacOS) or Ctrl+P (Windows/Linux)
-pref-shortcut-fallback = Cmd+Shift+P (MacOS) or Ctrl+Shift+P (Windows/Linux)
+pref-shortcut-primary = { PLATFORM() ->
+        [macos] ⌘+P
+       *[other] Ctrl+P
+    }
+pref-shortcut-fallback = { PLATFORM() ->
+        [macos] ⌘+⇧+P
+       *[other] Ctrl+Shift+P
+    }
 pref-results-section = Results
 pref-results-limit = Results limit
 

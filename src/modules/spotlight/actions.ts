@@ -1,4 +1,10 @@
 import type { QuickOpenResult } from "./search";
+import { getAttachmentResultType } from "./itemMetadata";
+import { shouldUseExternalHandler } from "./commands";
+import {
+  getBestOpenableAttachmentID,
+  isOpenableAttachment,
+} from "./attachmentHelpers";
 
 export type OpenIntent = "default" | "alternate" | "reveal";
 
@@ -35,7 +41,7 @@ export class ActionHandler {
     }
     if (
       alternate &&
-      isPdfAttachment(attachment) &&
+      isOpenableAttachment(attachment) &&
       typeof (Zotero as any).FileHandlers?.open === "function"
     ) {
       try {
@@ -52,7 +58,7 @@ export class ActionHandler {
     }
     const mainWindow = Zotero.getMainWindow();
     const pane = mainWindow?.ZoteroPane;
-    if (shouldUseExternalPdfHandler(attachment)) {
+    if (shouldUseExternalHandler(getAttachmentResultType(attachment))) {
       pane?.viewAttachment?.(attachmentID);
       return;
     }
@@ -164,52 +170,8 @@ export class ActionHandler {
     if (!item) {
       return null;
     }
-    const candidate = item as any;
-    if (typeof candidate.getBestAttachment === "function") {
-      const best = await candidate.getBestAttachment();
-      if (typeof best === "number") {
-        return best;
-      }
-      if (best?.id) {
-        return best.id as number;
-      }
-    }
-    if (typeof candidate.getPrimaryAttachment === "function") {
-      const primary = await candidate.getPrimaryAttachment();
-      if (typeof primary === "number") {
-        return primary;
-      }
-      if (primary?.id) {
-        return primary.id as number;
-      }
-    }
-    const attachmentIDs = candidate.getAttachments?.() || [];
-    for (const attachmentID of attachmentIDs) {
-      const attachment = Zotero.Items.get(attachmentID) as Zotero.Item;
-      if (attachment && isPdfAttachment(attachment)) {
-        return attachmentID;
-      }
-    }
-    return null;
+    return getBestOpenableAttachmentID(item);
   }
-}
-
-function isPdfAttachment(item: Zotero.Item): boolean {
-  const candidate = item as any;
-  if (typeof candidate.isPDFAttachment === "function") {
-    return candidate.isPDFAttachment();
-  }
-  const contentType =
-    candidate.attachmentContentType || candidate.attachmentMIMEType;
-  return item.isAttachment() && contentType === "application/pdf";
-}
-
-function shouldUseExternalPdfHandler(item: Zotero.Item): boolean {
-  if (!isPdfAttachment(item)) {
-    return false;
-  }
-  const handler = String(Zotero.Prefs.get("fileHandler.pdf") || "").trim();
-  return handler.length > 0;
 }
 
 function getExistingReader(

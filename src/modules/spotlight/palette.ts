@@ -8,6 +8,7 @@ import type {
 } from "./search";
 import type { SearchService } from "./search";
 import {
+  getAttachmentResultType,
   getItemAbstractSnippetSafe,
   getItemAuthorsSafe,
   getItemNoteSnippetSafe,
@@ -15,8 +16,16 @@ import {
   getItemTagsSafe,
   getItemTitleSafe,
   getItemYearSafe,
-  isPDFAttachment,
 } from "./itemMetadata";
+import {
+  getAttachmentParentItem,
+  getAttachmentTypeMeta,
+  getBestOpenableAttachmentID,
+  getParentForCommand,
+  getParentItem,
+  getPreferredOpenableAttachmentResultType,
+  isOpenableAttachmentType,
+} from "./attachmentHelpers";
 import { getPref } from "../../utils/prefs";
 
 const HTML_NS = "http://www.w3.org/1999/xhtml";
@@ -359,6 +368,11 @@ export class PaletteUI {
         if (!itemID) continue;
         const item = Zotero.Items.get(itemID) as any;
         if (!item) continue;
+        const attachmentResultType = item.isAttachment?.()
+          ? getAttachmentResultType(item as Zotero.Item)
+          : "item";
+        const attachmentTypeLabel =
+          getAttachmentTypeMeta(attachmentResultType).label;
         const parent = item.isAttachment?.()
           ? (Zotero.Items.get(item.parentID) as any)
           : item;
@@ -368,10 +382,10 @@ export class PaletteUI {
           title: item.isAttachment?.()
             ? parent?.getDisplayTitle?.() ||
               (item as any).attachmentFilename ||
-              "PDF"
+              attachmentTypeLabel
             : item.getDisplayTitle?.() || "Untitled",
-          subtitle: item.isAttachment?.() ? "PDF" : "Item",
-          resultType: item.isAttachment?.() ? "pdf" : "item",
+          subtitle: item.isAttachment?.() ? attachmentTypeLabel : "Item",
+          resultType: attachmentResultType,
           libraryKind: "user",
           score: 10,
         });
@@ -525,18 +539,24 @@ export class PaletteUI {
     if (alternate === "reveal") {
       const attachmentID = result.attachmentID;
       if (typeof attachmentID === "number") {
+        const attachmentResult = this.createAttachmentResult(attachmentID);
         await this.actionHandler.openAttachment(attachmentID, false);
-        await this.actionHandler.openResult(
-          {
-            id: attachmentID,
-            kind: "attachment",
-            resultType: "pdf",
-            title: result.subtitle || "PDF",
-            subtitle: "PDF",
-            score: result.score,
-          },
-          "reveal",
-        );
+        if (attachmentResult) {
+          await this.actionHandler.openResult(attachmentResult, "reveal");
+        } else {
+          const sourceMeta = this.getAnnotationSourceMeta(result);
+          await this.actionHandler.openResult(
+            {
+              id: attachmentID,
+              kind: "attachment",
+              resultType: sourceMeta.resultType,
+              title: result.subtitle || sourceMeta.label,
+              subtitle: sourceMeta.label,
+              score: result.score,
+            },
+            "reveal",
+          );
+        }
       }
       return;
     }
@@ -1599,7 +1619,7 @@ export class PaletteUI {
       | string
       | undefined;
     const title = filename || getItemTitleSafe(attachment);
-    const parent = this.getAttachmentParentItem(attachment);
+    const parent = getAttachmentParentItem(attachment);
     const subtitle = parent ? getItemTitleSafe(parent) : "";
     const tags = parent ? getItemTagsSafe(parent, 3) : [];
     const abstractSnippet = parent
@@ -1609,7 +1629,7 @@ export class PaletteUI {
     return {
       id: attachmentID,
       kind: "attachment",
-      resultType: isPDFAttachment(attachment) ? "pdf" : "item",
+      resultType: getAttachmentResultType(attachment),
       title: title || "Attachment",
       subtitle,
       score: 0,
@@ -1636,21 +1656,6 @@ export class PaletteUI {
       authors: getItemAuthorsSafe(item),
       abstractSnippet: getItemAbstractSnippetSafe(item, 90),
     };
-  }
-
-  private getAttachmentParentItem(attachment: Zotero.Item): Zotero.Item | null {
-    const parentID =
-      (attachment as any).parentID ?? (attachment as any).parentItemID;
-    if (typeof parentID === "number") {
-      return Zotero.Items.get(parentID) as Zotero.Item;
-    }
-    const topLevel = (attachment as any).topLevelItem as
-      | Zotero.Item
-      | undefined;
-    if (topLevel && topLevel.id && topLevel.id !== attachment.id) {
-      return topLevel;
-    }
-    return null;
   }
 
   private createNoteResult(noteID: number): QuickOpenResult | null {
@@ -1800,6 +1805,7 @@ export class PaletteUI {
     container: HTMLElement,
     result: AnnotationResult,
   ): void {
+    const sourceMeta = this.getAnnotationSourceMeta(result);
     const meta = [result.authors, result.year ? String(result.year) : ""]
       .filter(Boolean)
       .join(" - ");
@@ -1807,7 +1813,7 @@ export class PaletteUI {
       this.createPreviewHeader(
         "Annotation",
         result.subtitle || "Annotation result",
-        meta || "Jump directly to the matching annotation in the PDF reader.",
+        meta || "Jump directly to the matching annotation in the reader.",
       ),
     );
     this.appendPreviewChips(container, "spotlight-preview-meta", [
@@ -1815,7 +1821,7 @@ export class PaletteUI {
         label: result.pageLabel ? `Page ${result.pageLabel}` : "Annotation",
         color: result.annotationColor,
       },
-      { label: "PDF jump" },
+      { label: `${sourceMeta.label} jump` },
     ]);
     this.appendPreviewSection(container, "Matched text", result.title, true);
     if (result.abstractSnippet) {
@@ -1987,7 +1993,7 @@ export class PaletteUI {
       );
     }
     if (result.kind === "attachment" && item?.isAttachment?.()) {
-      const parent = this.getAttachmentParentItem(item);
+      const parent = getAttachmentParentItem(item);
       if (parent) {
         return (
           getItemAbstractSnippetSafe(parent, 420) ||
@@ -2014,6 +2020,12 @@ export class PaletteUI {
     }
     if (result.resultType === "pdf") {
       return "Open the PDF in the Zotero reader.";
+    }
+    if (result.resultType === "epub") {
+      return "Open the EPUB in the Zotero reader.";
+    }
+    if (result.resultType === "snapshot") {
+      return "Open the Snapshot in the Zotero reader.";
     }
     return "Inspect the result here, then open it when you are ready.";
   }
@@ -2072,28 +2084,28 @@ export class PaletteUI {
       ];
     }
     if (result.kind === "annotation") {
+      const sourceMeta = this.getAnnotationSourceMeta(result);
+      const sourceLabel =
+        sourceMeta.label === "Attachment" ? "attachment" : sourceMeta.label;
       const actions: PanelAction[] = [
         {
           id: "open-annotation",
           label: "Open annotation",
-          icon: {
-            url: "chrome://zotero/skin/16/universal/annotate-highlight.svg",
-            text: "✦",
-          },
-          hint: "Jump to the exact annotation in the PDF reader",
+          icon: this.getActionCommandIcon("annotate", "✦"),
+          hint: "Jump to the exact annotation in the reader",
           run: async () => {
             await this.openAnnotation(result, "default");
             this.hide();
           },
         },
         {
-          id: "open-pdf-window",
-          label: "Open PDF in window",
+          id: "open-attachment-window",
+          label: `Open ${sourceMeta.label} in window`,
           icon: {
-            itemType: "attachmentPDF",
+            itemType: sourceMeta.itemType,
             text: "□",
           },
-          hint: "Open the source PDF in a separate reader window",
+          hint: `Open the source ${sourceLabel} in a separate reader window`,
           run: async () => {
             await this.openAnnotation(result, "alternate");
             this.hide();
@@ -2102,11 +2114,8 @@ export class PaletteUI {
         {
           id: "reveal-attachment",
           label: "Reveal in library",
-          icon: {
-            url: "chrome://zotero/skin/16/universal/library-collection.svg",
-            text: "⌕",
-          },
-          hint: "Select the source PDF in Zotero",
+          icon: this.getActionCommandIcon("collection", "⌕"),
+          hint: `Select the source ${sourceLabel} in Zotero`,
           run: async () => {
             const attachmentResult = this.createAttachmentResult(
               result.attachmentID || 0,
@@ -2131,16 +2140,17 @@ export class PaletteUI {
     const actions: PanelAction[] = [
       {
         id: "open-default",
-        label: result.resultType === "pdf" ? "Open PDF" : "Open",
+        label: this.getDefaultOpenActionLabel(result.resultType),
         icon:
           result.resultType === "pdf"
             ? { itemType: "attachmentPDF", text: "↗" }
             : result.resultType === "note"
-              ? {
-                  url: "chrome://zotero/skin/16/universal/note.svg",
-                  text: "↵",
-                }
-              : { itemType: "document", text: "↵" },
+              ? this.getActionCommandIcon("note", "↵")
+              : result.resultType === "epub"
+                ? { itemType: "attachmentEPUB", text: "↗" }
+                : result.resultType === "snapshot"
+                  ? { itemType: "attachmentSnapshot", text: "↗" }
+                  : { itemType: "document", text: "↵" },
         hint: "Open the selected result",
         run: async () => {
           await this.finishQuickOpen(result, "default");
@@ -2149,10 +2159,7 @@ export class PaletteUI {
       {
         id: "reveal-item",
         label: "Reveal in library",
-        icon: {
-          url: "chrome://zotero/skin/16/universal/library-collection.svg",
-          text: "⌕",
-        },
+        icon: this.getActionCommandIcon("collection", "⌕"),
         hint: "Select this item in the Zotero main pane",
         run: async () => {
           await this.finishQuickOpen(result, "reveal");
@@ -2161,13 +2168,22 @@ export class PaletteUI {
       {
         id: "open-alternate",
         label:
-          result.resultType === "pdf" || result.resultType === "note"
+          result.resultType === "pdf" ||
+          result.resultType === "note" ||
+          result.resultType === "epub" ||
+          result.resultType === "snapshot"
             ? "Open in new window"
             : "Open in alternate mode",
         icon:
           result.resultType === "pdf"
             ? { itemType: "attachmentPDF", text: "□" }
-            : { itemType: "document", text: "□" },
+            : result.resultType === "epub"
+              ? { itemType: "attachmentEPUB", text: "□" }
+              : result.resultType === "snapshot"
+                ? { itemType: "attachmentSnapshot", text: "□" }
+                : result.resultType === "note"
+                  ? this.getActionCommandIcon("note", "□")
+                  : { itemType: "document", text: "□" },
         hint: "Use the alternate open behavior",
         run: async () => {
           await this.finishQuickOpen(result, "alternate");
@@ -2175,16 +2191,19 @@ export class PaletteUI {
       },
     ].filter((action) =>
       action.id === "open-alternate"
-        ? result.resultType === "pdf" || result.resultType === "note"
+        ? result.resultType === "pdf" ||
+          result.resultType === "note" ||
+          result.resultType === "epub" ||
+          result.resultType === "snapshot"
         : true,
     );
 
-    const pdfAction = this.createOpenPdfPanelAction(result);
-    if (pdfAction) {
-      actions.splice(1, 0, pdfAction);
+    const openAttachmentAction = this.createOpenAttachmentPanelAction(result);
+    if (openAttachmentAction) {
+      actions.splice(1, 0, openAttachmentAction);
     }
 
-    const revealFileAction = this.createRevealPdfFilePanelAction(result);
+    const revealFileAction = this.createRevealAttachmentFilePanelAction(result);
     if (revealFileAction) {
       actions.splice(2, 0, revealFileAction);
     }
@@ -2207,23 +2226,32 @@ export class PaletteUI {
     return actions;
   }
 
-  private createOpenPdfPanelAction(
+  private createOpenAttachmentPanelAction(
     result: QuickOpenResult,
   ): PanelAction | null {
-    if (result.kind === "attachment" && result.resultType === "pdf") {
+    if (
+      result.kind === "attachment" &&
+      isOpenableAttachmentType(result.resultType)
+    ) {
       return null;
     }
     if (result.resultType === "note") {
       const note = Zotero.Items.get(result.id) as Zotero.Item | null;
-      const parent = note ? this.getParentItem(note) : null;
-      if (!parent || !this.hasPdfAttachment(parent)) {
+      const parent = note ? getParentItem(note) : null;
+      const preferredType = parent
+        ? getPreferredOpenableAttachmentResultType(parent)
+        : null;
+      if (!parent || !preferredType) {
         return null;
       }
       return {
-        id: "open-parent-pdf",
-        label: "Open parent PDF",
-        icon: { itemType: "attachmentPDF", text: "↗" },
-        hint: "Open the closest PDF attached to the parent item",
+        id: "open-parent-attachment",
+        label: `Open parent ${getAttachmentTypeMeta(preferredType).label}`,
+        icon: {
+          itemType: getAttachmentTypeMeta(preferredType).itemType,
+          text: "↗",
+        },
+        hint: "Open the closest PDF/EPUB/Snapshot attachment on the parent item",
         run: async () => {
           const attachmentID = await this.getPrimaryAttachmentID(parent.id);
           if (!attachmentID) {
@@ -2239,14 +2267,20 @@ export class PaletteUI {
       return null;
     }
     const item = Zotero.Items.get(result.id) as Zotero.Item | null;
-    if (!item || !this.hasPdfAttachment(item)) {
+    const preferredType = item
+      ? getPreferredOpenableAttachmentResultType(item)
+      : null;
+    if (!item || !preferredType) {
       return null;
     }
     return {
-      id: "open-pdf",
-      label: "Open PDF",
-      icon: { itemType: "attachmentPDF", text: "↗" },
-      hint: "Open the best attachment for this item",
+      id: "open-attachment",
+      label: `Open ${getAttachmentTypeMeta(preferredType).label}`,
+      icon: {
+        itemType: getAttachmentTypeMeta(preferredType).itemType,
+        text: "↗",
+      },
+      hint: "Open the best PDF/EPUB/Snapshot attachment for this item",
       run: async () => {
         const attachmentID = await this.getPrimaryAttachmentID(result.id);
         if (!attachmentID) {
@@ -2270,7 +2304,7 @@ export class PaletteUI {
     }
     const parent =
       item.isAttachment?.() || item.isNote?.()
-        ? this.getParentItem(item) || this.getAttachmentParentItem(item)
+        ? getParentItem(item) || getAttachmentParentItem(item)
         : null;
     if (!parent) {
       return null;
@@ -2333,7 +2367,7 @@ export class PaletteUI {
       return {
         id: "copy-annotation-content",
         label: "Copy Content",
-        icon: this.getActionCommandIcon("copy-citation", "C"),
+        icon: this.getActionCommandIcon("annotate", "C"),
         run: async () => {
           this.copyTextToClipboard(content);
           this.hide();
@@ -2354,7 +2388,7 @@ export class PaletteUI {
     return {
       id: "copy-note-content",
       label: "Copy Content",
-      icon: this.getActionCommandIcon("copy-citation", "C"),
+      icon: this.getActionCommandIcon("note", "C"),
       run: async () => {
         this.copyTextToClipboard(content);
         this.hide();
@@ -2362,18 +2396,18 @@ export class PaletteUI {
     };
   }
 
-  private createRevealPdfFilePanelAction(
+  private createRevealAttachmentFilePanelAction(
     result: QuickOpenResult,
   ): PanelAction | null {
     const label = `Show in ${this.getFileManagerLabel()}`;
-    if (result.kind === "attachment" && result.resultType === "pdf") {
+    if (
+      result.kind === "attachment" &&
+      isOpenableAttachmentType(result.resultType)
+    ) {
       return {
-        id: "reveal-pdf-file",
+        id: "reveal-attachment-file",
         label,
-        icon: {
-          url: "chrome://zotero/skin/16/universal/library-collection.svg",
-          text: "⌕",
-        },
+        icon: this.getActionCommandIcon("show-file", "⌕"),
         run: async () => {
           await this.actionHandler.revealAttachmentFile(result.id);
           this.hide();
@@ -2385,12 +2419,9 @@ export class PaletteUI {
       typeof result.attachmentID === "number"
     ) {
       return {
-        id: "reveal-annotation-pdf-file",
+        id: "reveal-annotation-attachment-file",
         label,
-        icon: {
-          url: "chrome://zotero/skin/16/universal/library-collection.svg",
-          text: "⌕",
-        },
+        icon: this.getActionCommandIcon("show-file", "⌕"),
         run: async () => {
           await this.actionHandler.revealAttachmentFile(result.attachmentID!);
           this.hide();
@@ -2399,17 +2430,14 @@ export class PaletteUI {
     }
     if (result.resultType === "note") {
       const note = Zotero.Items.get(result.id) as Zotero.Item | null;
-      const parent = note ? this.getParentItem(note) : null;
-      if (!parent || !this.hasPdfAttachment(parent)) {
+      const parent = note ? getParentItem(note) : null;
+      if (!parent || !getPreferredOpenableAttachmentResultType(parent)) {
         return null;
       }
       return {
-        id: "reveal-parent-pdf-file",
+        id: "reveal-parent-attachment-file",
         label,
-        icon: {
-          url: "chrome://zotero/skin/16/universal/library-collection.svg",
-          text: "⌕",
-        },
+        icon: this.getActionCommandIcon("show-file", "⌕"),
         run: async () => {
           const attachmentID = await this.getPrimaryAttachmentID(parent.id);
           if (!attachmentID) {
@@ -2424,16 +2452,13 @@ export class PaletteUI {
       return null;
     }
     const item = Zotero.Items.get(result.id) as Zotero.Item | null;
-    if (!item || !this.hasPdfAttachment(item)) {
+    if (!item || !getPreferredOpenableAttachmentResultType(item)) {
       return null;
     }
     return {
-      id: "reveal-item-pdf-file",
+      id: "reveal-item-attachment-file",
       label,
-      icon: {
-        url: "chrome://zotero/skin/16/universal/library-collection.svg",
-        text: "⌕",
-      },
+      icon: this.getActionCommandIcon("show-file", "⌕"),
       run: async () => {
         const attachmentID = await this.getPrimaryAttachmentID(result.id);
         if (!attachmentID) {
@@ -2538,16 +2563,8 @@ export class PaletteUI {
     }
   }
 
-  private getParentItem(item: Zotero.Item): Zotero.Item | null {
-    const parentID = (item as any).parentID ?? (item as any).parentItemID;
-    if (typeof parentID === "number") {
-      return Zotero.Items.get(parentID) as Zotero.Item;
-    }
-    return null;
-  }
-
   private getCitationTarget(item: Zotero.Item | null): Zotero.Item | null {
-    const parent = item ? this.getParentForCommand(item) : null;
+    const parent = item ? getParentForCommand(item) : null;
     if (!parent) {
       return null;
     }
@@ -2560,57 +2577,12 @@ export class PaletteUI {
     return parent;
   }
 
-  private getParentForCommand(item: Zotero.Item | null): Zotero.Item | null {
-    if (!item) {
-      return null;
-    }
-    if (item.isRegularItem()) {
-      return item;
-    }
-    const candidate = item as any;
-    const parentID = candidate.parentID ?? candidate.parentItemID;
-    if (typeof parentID === "number") {
-      return Zotero.Items.get(parentID) as Zotero.Item;
-    }
-    const topLevel = candidate.topLevelItem as Zotero.Item | undefined;
-    if (topLevel && topLevel.id && topLevel.id !== item.id) {
-      return topLevel;
-    }
-    return item;
-  }
-
   private async getPrimaryAttachmentID(itemID: number): Promise<number | null> {
     const item = Zotero.Items.get(itemID) as Zotero.Item;
     if (!item) {
       return null;
     }
-    const candidate = item as any;
-    if (typeof candidate.getBestAttachment === "function") {
-      const best = await candidate.getBestAttachment();
-      if (typeof best === "number") {
-        return best;
-      }
-      if (best?.id) {
-        return best.id as number;
-      }
-    }
-    if (typeof candidate.getPrimaryAttachment === "function") {
-      const primary = await candidate.getPrimaryAttachment();
-      if (typeof primary === "number") {
-        return primary;
-      }
-      if (primary?.id) {
-        return primary.id as number;
-      }
-    }
-    const attachmentIDs = candidate.getAttachments?.() || [];
-    for (const attachmentID of attachmentIDs) {
-      const attachment = Zotero.Items.get(attachmentID) as Zotero.Item;
-      if (attachment && isPDFAttachment(attachment)) {
-        return attachmentID;
-      }
-    }
-    return null;
+    return getBestOpenableAttachmentID(item);
   }
 
   private getItemTypeIconNameForItem(item: Zotero.Item | null): string | null {
@@ -2646,16 +2618,31 @@ export class PaletteUI {
     return item.isAttachment() ? "attachment" : "document";
   }
 
-  private hasPdfAttachment(item: Zotero.Item): boolean {
-    const candidate = item as any;
-    const attachmentIDs = candidate.getAttachments?.() || [];
-    for (const attachmentID of attachmentIDs) {
-      const attachment = Zotero.Items.get(attachmentID) as Zotero.Item;
-      if (attachment && isPDFAttachment(attachment)) {
-        return true;
+  private getAnnotationSourceMeta(result: AnnotationResult): {
+    label: string;
+    itemType: string;
+    resultType: QuickOpenResult["resultType"];
+  } {
+    const attachmentID = result.attachmentID;
+    if (typeof attachmentID === "number") {
+      const attachment = Zotero.Items.get(attachmentID) as Zotero.Item | null;
+      if (attachment?.isAttachment?.()) {
+        const resultType = getAttachmentResultType(attachment);
+        if (isOpenableAttachmentType(resultType)) {
+          const meta = getAttachmentTypeMeta(resultType);
+          return {
+            label: meta.label,
+            itemType: meta.itemType,
+            resultType,
+          };
+        }
       }
     }
-    return false;
+    return {
+      label: "Attachment",
+      itemType: "attachment",
+      resultType: "item",
+    };
   }
 
   private getFileManagerLabel(): string {
@@ -2849,6 +2836,12 @@ export class PaletteUI {
     if (iconName === "collection") {
       return "chrome://zotero/skin/16/universal/library-collection.svg";
     }
+    if (iconName === "show-file") {
+      return "chrome://zotero/skin/16/universal/folder-open.svg";
+    }
+    if (iconName === "annotate") {
+      return "chrome://zotero/skin/16/universal/annotation.svg";
+    }
     return null;
   }
 
@@ -2906,10 +2899,34 @@ export class PaletteUI {
     if (type === "note") {
       return "NOTE";
     }
+    if (type === "epub") {
+      return "EPUB";
+    }
+    if (type === "snapshot") {
+      return "SNAPSHOT";
+    }
     if (type === "annotation") {
       return "ANNO";
     }
     return "ITEM";
+  }
+
+  private getDefaultOpenActionLabel(
+    type: QuickOpenResult["resultType"],
+  ): string {
+    if (type === "pdf") {
+      return "Open PDF";
+    }
+    if (type === "note") {
+      return "Open Note";
+    }
+    if (type === "epub") {
+      return "Open EPUB";
+    }
+    if (type === "snapshot") {
+      return "Open Snapshot";
+    }
+    return "Open";
   }
 
   private pushRecentActivated(itemID: number): void {
@@ -3071,7 +3088,14 @@ export class PaletteUI {
       this.closeAutocomplete();
       return;
     }
-    const typeValues = ["pdf", "note", "item", "annotation"];
+    const typeValues = [
+      "pdf",
+      "epub",
+      "snapshot",
+      "note",
+      "item",
+      "annotation",
+    ];
     const yearValues = ["2024", "2023", "2020-2024", ">=2020", "<=2024"];
     let options: string[];
     if (context.prefix === ":") {
