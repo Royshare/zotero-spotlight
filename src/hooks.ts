@@ -19,7 +19,7 @@ async function onStartup() {
     pluginID: addon.data.config.addonID,
     src: `chrome://${addonRef}/content/preferences.xhtml`,
     label: addon.data.config.addonName,
-    image: `chrome://${addonRef}/content/icons/favicon.png`,
+    image: `chrome://${addonRef}/content/icons/favicon.svg`,
   });
 
   windowManager = new WindowManager();
