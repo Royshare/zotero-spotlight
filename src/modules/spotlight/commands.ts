@@ -1,3 +1,14 @@
+import {
+  getAttachmentResultType,
+  type AttachmentResultType,
+} from "./itemMetadata";
+import {
+  getBestOpenableAttachmentID,
+  getAttachmentTypeMeta,
+  getParentForCommand,
+  isOpenableAttachment,
+} from "./attachmentHelpers";
+
 export type CommandContext = "main" | "reader" | "note";
 
 export interface CommandResult {
@@ -226,7 +237,10 @@ export class CommandRegistry {
         subtitle: "Copy citation for selected/current item",
         keywords: ["quick copy", "reference", "cite", "clipboard"],
         contexts: ["main", "reader", "note"],
-        shortcut: "Shift+Cmd/Ctrl+A",
+        shortcut: getZoteroShortcut(
+          "keys.copySelectedItemCitationsToClipboard",
+          "A",
+        ),
         icon: "copy-citation",
         group: "Export",
         isAvailable: ({ pane, activeItem }) => {
@@ -271,7 +285,7 @@ export class CommandRegistry {
         subtitle: "Copy bibliography for selected/current item",
         keywords: ["quick copy", "reference", "bibliography", "clipboard"],
         contexts: ["main", "reader", "note"],
-        shortcut: "Shift+Cmd/Ctrl+C",
+        shortcut: getZoteroShortcut("keys.copySelectedItemsToClipboard", "C"),
         icon: "copy-bibliography",
         group: "Export",
         isAvailable: ({ pane, activeItem }) => {
@@ -311,10 +325,20 @@ export class CommandRegistry {
         },
       },
       {
-        id: "note-and-open-pdf",
-        title: "Add Note + Open PDF",
-        subtitle: "Create note for current item and open its PDF",
-        keywords: ["workflow", "note", "pdf", "open", "focus"],
+        id: "note-and-open-best-attachment",
+        title: "Add Note + Open Best Attachment",
+        subtitle: "Create note for current item and open its best attachment",
+        keywords: [
+          "workflow",
+          "note",
+          "open",
+          "attachment",
+          "best attachment",
+          "primary",
+          "pdf",
+          "epub",
+          "snapshot",
+        ],
         contexts: ["main", "reader", "note"],
         icon: "note",
         group: "Workflow",
@@ -332,6 +356,13 @@ export class CommandRegistry {
           if (!parent || !parent.isRegularItem()) {
             return { enabled: false, reason: "Select an item first" };
           }
+          const attachmentIDs = (parent as any).getAttachments?.() || [];
+          if (!attachmentIDs.length) {
+            return {
+              enabled: false,
+              reason: "Current item does not have any attachment",
+            };
+          }
           return { enabled: true };
         },
         run: async ({ pane, activeItem }) => {
@@ -343,15 +374,23 @@ export class CommandRegistry {
             return;
           }
           await pane.newNote(false, parent.key);
-          const attachmentID = await getBestPdfAttachmentID(parent);
+          const attachmentID = await getBestAttachmentID(parent);
           if (!attachmentID) {
             return;
           }
-          if (shouldUseExternalPdfHandler()) {
+          const attachment = Zotero.Items.get(attachmentID) as Zotero.Item;
+          if (!attachment) {
+            return;
+          }
+          const attachmentType = getAttachmentResultType(attachment);
+          if (shouldUseExternalHandler(attachmentType)) {
             pane.viewAttachment?.(attachmentID);
             return;
           }
-          if (typeof (Zotero as any).Reader?.open === "function") {
+          if (
+            attachmentType === "pdf" &&
+            typeof (Zotero as any).Reader?.open === "function"
+          ) {
             await (Zotero as any).Reader.open(attachmentID, {
               openInWindow: false,
             });
@@ -405,13 +444,16 @@ export class CommandRegistry {
       {
         id: "extract-highlights",
         title: "Extract Highlights",
-        subtitle: "Create a note from PDF highlights and annotation comments",
+        subtitle:
+          "Create a note from PDF, EPUB, or Snapshot highlights and annotation comments",
         keywords: [
           "workflow",
           "extract highlights",
           "annotations",
           "highlights",
           "pdf",
+          "epub",
+          "snapshot",
         ],
         contexts: ["main", "reader", "note"],
         icon: "note",
@@ -430,10 +472,11 @@ export class CommandRegistry {
           if (!parent || !parent.isRegularItem()) {
             return { enabled: false, reason: "Select an item first" };
           }
-          if (!hasPdfAttachment(parent)) {
+          if (!hasRevealableAttachment(parent)) {
             return {
               enabled: false,
-              reason: "Current item does not have a PDF attachment",
+              reason:
+                "Current item does not have a PDF, EPUB, or Snapshot attachment",
             };
           }
           return { enabled: true };
@@ -443,7 +486,7 @@ export class CommandRegistry {
           if (!pane || !parent || !parent.isRegularItem()) {
             return;
           }
-          const attachmentID = await getBestPdfAttachmentID(parent);
+          const attachmentID = await getBestRevealableAttachmentID(parent);
           if (!attachmentID) {
             return;
           }
@@ -507,28 +550,31 @@ export class CommandRegistry {
       },
       {
         id: "show-pdf-in-file-manager",
-        title: `Show PDF in ${getFileManagerLabel()}`,
-        subtitle: `Reveal the current PDF file in ${getFileManagerLabel()}`,
+        title: `Show Attachment in ${getFileManagerLabel()}`,
+        subtitle: `Reveal the current PDF, EPUB, or Snapshot file in ${getFileManagerLabel()}`,
         keywords: [
           "finder",
           "explorer",
           "reveal",
           "show file",
           "pdf",
+          "epub",
+          "snapshot",
           "attachment",
         ],
         contexts: ["main", "reader", "note"],
-        icon: "collection",
+        icon: "show-file",
         group: "Navigation",
         isAvailable: ({ activeItem }) => {
           const parent = getParentForCommand(activeItem);
           if (!parent || !parent.isRegularItem()) {
             return { enabled: false, reason: "Select an item first" };
           }
-          if (!hasPdfAttachment(parent)) {
+          if (!hasRevealableAttachment(parent)) {
             return {
               enabled: false,
-              reason: "Current item does not have a PDF attachment",
+              reason:
+                "Current item does not have a PDF, EPUB, or Snapshot attachment",
             };
           }
           return { enabled: true };
@@ -538,7 +584,7 @@ export class CommandRegistry {
           if (!parent || !parent.isRegularItem()) {
             return;
           }
-          const attachmentID = await getBestPdfAttachmentID(parent);
+          const attachmentID = await getBestRevealableAttachmentID(parent);
           if (!attachmentID) {
             return;
           }
@@ -593,25 +639,6 @@ function getCollectionTarget(item: Zotero.Item | null): Zotero.Item | null {
   return getParentForCommand(item);
 }
 
-function getParentForCommand(item: Zotero.Item | null): Zotero.Item | null {
-  if (!item) {
-    return null;
-  }
-  if (item.isRegularItem()) {
-    return item;
-  }
-  const candidate = item as any;
-  const parentID = candidate.parentID ?? candidate.parentItemID;
-  if (typeof parentID === "number") {
-    return Zotero.Items.get(parentID) as Zotero.Item;
-  }
-  const topLevel = candidate.topLevelItem as Zotero.Item | undefined;
-  if (topLevel && topLevel.id && topLevel.id !== item.id) {
-    return topLevel;
-  }
-  return item;
-}
-
 function getFirstCollectionID(item: Zotero.Item): number | null {
   const collections = item.getCollections?.();
   if (!collections || !collections.length) {
@@ -621,29 +648,33 @@ function getFirstCollectionID(item: Zotero.Item): number | null {
   return typeof collectionID === "number" ? collectionID : null;
 }
 
-async function getBestPdfAttachmentID(
-  item: Zotero.Item,
-): Promise<number | null> {
+async function getBestAttachmentID(item: Zotero.Item): Promise<number | null> {
   const candidate = item as any;
   if (typeof candidate.getBestAttachment === "function") {
     const best = await candidate.getBestAttachment();
     if (typeof best === "number") {
       const bestItem = Zotero.Items.get(best) as Zotero.Item;
-      return bestItem && isPDFAttachment(bestItem) ? best : null;
+      return bestItem && bestItem.isAttachment() ? best : null;
     }
     if (best?.id) {
       const bestItem = Zotero.Items.get(best.id) as Zotero.Item;
-      return bestItem && isPDFAttachment(bestItem) ? (best.id as number) : null;
+      return bestItem && bestItem.isAttachment() ? (best.id as number) : null;
     }
   }
   const attachmentIDs = candidate.getAttachments?.() || [];
   for (const attachmentID of attachmentIDs) {
     const attachment = Zotero.Items.get(attachmentID) as Zotero.Item;
-    if (attachment && isPDFAttachment(attachment)) {
+    if (attachment && attachment.isAttachment()) {
       return attachmentID;
     }
   }
   return null;
+}
+
+async function getBestRevealableAttachmentID(
+  item: Zotero.Item,
+): Promise<number | null> {
+  return getBestOpenableAttachmentID(item);
 }
 
 async function createChildNote(
@@ -714,6 +745,8 @@ function buildExtractHighlightsNoteContent(
   attachment: Zotero.Item,
 ): string {
   const title = escapeHTML(parent.getDisplayTitle?.() || "Untitled");
+  const sourceType = getAttachmentResultType(attachment);
+  const sourceTypeLabel = getAttachmentTypeMeta(sourceType).label;
   const annotations = [...(attachment.getAnnotations?.() || [])]
     .filter((annotation) => {
       const text = annotation.annotationText?.trim() || "";
@@ -746,22 +779,22 @@ function buildExtractHighlightsNoteContent(
   return `
     <h1>Extracted highlights</h1>
     <h2>${title}</h2>
-    <p><strong>Source PDF</strong>: ${escapeHTML(
+    <p><strong>Source ${escapeHTML(sourceTypeLabel)}</strong>: ${escapeHTML(
       (attachment as any).attachmentFilename ||
         attachment.getDisplayTitle?.() ||
-        "PDF",
+        sourceTypeLabel,
     )}</p>
     <p><strong>Total annotations</strong>: ${annotations.length}</p>
     <ol>${entriesHTML}</ol>
   `;
 }
 
-function hasPdfAttachment(item: Zotero.Item): boolean {
+function hasRevealableAttachment(item: Zotero.Item): boolean {
   const candidate = item as any;
   const attachmentIDs = candidate.getAttachments?.() || [];
   for (const attachmentID of attachmentIDs) {
     const attachment = Zotero.Items.get(attachmentID) as Zotero.Item;
-    if (attachment && isPDFAttachment(attachment)) {
+    if (attachment && isOpenableAttachment(attachment)) {
       return true;
     }
   }
@@ -785,18 +818,21 @@ async function revealAttachmentInFileManager(
   await Zotero.File.reveal(filePath);
 }
 
-function isPDFAttachment(item: Zotero.Item): boolean {
-  const candidate = item as any;
-  if (typeof candidate.isPDFAttachment === "function") {
-    return !!candidate.isPDFAttachment();
+export function shouldUseExternalHandler(
+  attachmentType: AttachmentResultType,
+): boolean {
+  const prefKey =
+    attachmentType === "pdf"
+      ? "fileHandler.pdf"
+      : attachmentType === "epub"
+        ? "fileHandler.epub"
+        : attachmentType === "snapshot"
+          ? "fileHandler.snapshot"
+          : "";
+  if (!prefKey) {
+    return false;
   }
-  const contentType =
-    candidate.attachmentContentType || candidate.attachmentMIMEType || "";
-  return String(contentType).toLowerCase().includes("pdf");
-}
-
-function shouldUseExternalPdfHandler(): boolean {
-  const handler = String(Zotero.Prefs.get("fileHandler.pdf") || "").trim();
+  const handler = String(Zotero.Prefs.get(prefKey) || "").trim();
   return handler.length > 0;
 }
 
@@ -808,6 +844,16 @@ function getFileManagerLabel(): string {
     return "Explorer";
   }
   return "File Manager";
+}
+
+function getZoteroShortcut(prefKey: string, fallbackKey: string): string {
+  const modifier = Zotero.isMac
+    ? Zotero.getString("general.keys.cmdShift")
+    : Zotero.getString("general.keys.ctrlShift");
+  const key = String(Zotero.Prefs.get(prefKey) || fallbackKey)
+    .trim()
+    .toUpperCase();
+  return `${modifier}${key}`;
 }
 
 function getCreatorLine(item: Zotero.Item): string {
