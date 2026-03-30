@@ -1,7 +1,7 @@
 {
   "name": "zotero-spotlight",
   "type": "module",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Zotero Spotlight",
   "config": {
     "addonName": "Zotero Spotlight",
