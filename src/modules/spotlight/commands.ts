@@ -339,14 +339,26 @@ export class CommandRegistry {
           "epub",
           "snapshot",
         ],
-        contexts: ["main", "reader", "note"],
+        contexts: ["main"],
         icon: "note",
         group: "Workflow",
-        isAvailable: ({ pane, activeItem }) => {
+        isAvailable: ({ win, pane, mainWindow, activeItem }) => {
           if (!pane) {
             return {
               enabled: false,
               reason: "Main Zotero pane is unavailable",
+            };
+          }
+          if (!isLibraryTabActive(win, mainWindow)) {
+            return {
+              enabled: false,
+              reason: "Open the Zotero item list first",
+            };
+          }
+          if (!hasExactlyOneSelectedItem(pane)) {
+            return {
+              enabled: false,
+              reason: "Select exactly one item in the Zotero item list",
             };
           }
           if (typeof pane.canEdit === "function" && !pane.canEdit()) {
@@ -633,6 +645,30 @@ function getCitationTarget(item: Zotero.Item | null): Zotero.Item | null {
     return null;
   }
   return parent;
+}
+
+function hasExactlyOneSelectedItem(
+  pane: _ZoteroTypes.ZoteroPane | null,
+): boolean {
+  const selectedItems = pane?.getSelectedItems?.() || [];
+  return selectedItems.length === 1;
+}
+
+function isLibraryTabActive(
+  win: Window,
+  mainWindow: _ZoteroTypes.MainWindow | null,
+): boolean {
+  const localTabs = (win as any).Zotero_Tabs as
+    | _ZoteroTypes.Zotero_Tabs
+    | undefined;
+  if (localTabs?.selectedID) {
+    return localTabs.selectedID === "zotero-pane";
+  }
+  const mainTabs = mainWindow?.Zotero_Tabs;
+  if (mainTabs?.selectedID) {
+    return mainTabs.selectedID === "zotero-pane";
+  }
+  return true;
 }
 
 function getCollectionTarget(item: Zotero.Item | null): Zotero.Item | null {
