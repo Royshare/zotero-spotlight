@@ -124,6 +124,17 @@ export class SearchService {
     collectionFilter: any = null,
     rankingState?: SearchRankingState,
   ): Promise<QuickOpenResult[]> {
+    const pdfContentQuery = parsePdfContentQuery(query);
+    if (pdfContentQuery !== null) {
+      return this.searchPdfContent(
+        pdfContentQuery,
+        win,
+        limit,
+        collectionFilter,
+        rankingState,
+      );
+    }
+
     const parsedQuery = parseStructuredQuery(query);
     const activeLibraryID = this.getActiveLibraryID(win);
     await this.ensureBaseIndex();
@@ -304,6 +315,89 @@ export class SearchService {
       localPane || mainPane || (Zotero.getActiveZoteroPane?.() as any);
     const selectedLibraryID = activePane?.getSelectedLibraryID?.();
     return typeof selectedLibraryID === "number" ? selectedLibraryID : null;
+  }
+
+  private async searchPdfContent(
+    rawQuery: string,
+    win: Window,
+    limit: number,
+    collectionFilter: any,
+    _rankingState?: SearchRankingState,
+  ): Promise<QuickOpenResult[]> {
+    const query = unquoteToken(rawQuery.trim());
+    if (!query) {
+      return [];
+    }
+
+    const seenAttachmentIDs = new Set<number>();
+    const results: AttachmentResult[] = [];
+    const collectionLibraryID =
+      typeof collectionFilter?.libraryID === "number"
+        ? collectionFilter.libraryID
+        : null;
+    const libraries =
+      collectionLibraryID !== null
+        ? Zotero.Libraries.getAll().filter(
+            (library) => library.libraryID === collectionLibraryID,
+          )
+        : Zotero.Libraries.getAll();
+
+    for (const library of libraries) {
+      try {
+        const search = new Zotero.Search();
+        (search as any).libraryID = library.libraryID;
+        if (
+          collectionFilter &&
+          collectionLibraryID !== null &&
+          library.libraryID === collectionLibraryID &&
+          typeof collectionFilter.key === "string"
+        ) {
+          search.addCondition("collection", "is", collectionFilter.key);
+          search.addCondition("recursive", "true", "");
+        }
+        search.addCondition("fulltextContent", "contains", query);
+
+        const ids = await search.search();
+        for (const [index, id] of ids.entries()) {
+          const item = Zotero.Items.get(id) as Zotero.Item | null;
+          if (!item?.isAttachment?.()) {
+            continue;
+          }
+          if (getAttachmentResultType(item) !== "pdf") {
+            continue;
+          }
+          if (seenAttachmentIDs.has(item.id)) {
+            continue;
+          }
+
+          const parent = getAttachmentParentItem(item);
+
+          seenAttachmentIDs.add(item.id);
+          results.push({
+            id: item.id,
+            kind: "attachment",
+            resultType: "pdf",
+            title: getAttachmentTitle(item),
+            subtitle: getAttachmentSubtitle(item),
+            score: ids.length - index,
+            year: parent ? getItemYearSafe(parent) : undefined,
+            libraryKind:
+              (library as any).libraryType === "group" ? "group" : "user",
+            authors: parent
+              ? getItemAuthorsSafe(parent) || undefined
+              : undefined,
+            tags: parent ? getItemTagsSafe(parent).slice(0, 6) : undefined,
+            abstractSnippet: parent
+              ? getItemAbstractSnippetSafe(parent, 120) || undefined
+              : undefined,
+          });
+        }
+      } catch (error) {
+        ztoolkit.log("Spotlight PDF content search failed", error);
+      }
+    }
+
+    return results.slice(0, limit);
   }
 }
 
@@ -814,6 +908,14 @@ function parseStructuredQuery(rawQuery: string): ParsedQuery {
       yearMax,
     },
   };
+}
+
+function parsePdfContentQuery(rawQuery: string): string | null {
+  const trimmedStart = rawQuery.trimStart();
+  if (!trimmedStart.startsWith("=")) {
+    return null;
+  }
+  return trimmedStart.slice(1).trim();
 }
 
 function getEntryScore(entry: IndexedEntry, query: ParsedQuery): number {
