@@ -429,7 +429,11 @@ export class PaletteUI {
     this.panelMode = "preview";
     this.selectedActionIndex = 0;
     this.updateBodyMode();
-    this.sectionHeader = parsedQuery.isCommandMode ? "Commands" : "Results";
+    this.sectionHeader = parsedQuery.isCommandMode
+      ? "Commands"
+      : parsedQuery.isPdfTextMode
+        ? "PDF Text"
+        : "Results";
     this.displayMode = parsedQuery.isCommandMode ? "command" : "search";
     this.selectedIndex = 0;
     this.renderResults();
@@ -1715,7 +1719,7 @@ export class PaletteUI {
             ? "Recent searches, open tabs, and recently visited items appear here."
             : this.displayMode === "command"
               ? "Arrow through commands to inspect shortcuts and context before running them."
-              : "Try a broader query or use filters like `:pdf`, `#tag`, `y:2024`.",
+              : "Try a broader query or use filters like `:pdf`, `#tag`, `y:2024`, or `=exact phrase` for PDF text.",
         ),
       );
       return;
@@ -2808,17 +2812,27 @@ export class PaletteUI {
 
   private parseQuery(rawQuery: string): {
     isCommandMode: boolean;
+    isPdfTextMode: boolean;
     query: string;
   } {
     const trimmedStart = rawQuery.trimStart();
     if (trimmedStart.startsWith(">")) {
       return {
         isCommandMode: true,
+        isPdfTextMode: false,
         query: trimmedStart.slice(1).trim(),
+      };
+    }
+    if (trimmedStart.startsWith("=")) {
+      return {
+        isCommandMode: false,
+        isPdfTextMode: true,
+        query: trimmedStart,
       };
     }
     return {
       isCommandMode: false,
+      isPdfTextMode: false,
       query: rawQuery.trim(),
     };
   }
@@ -3023,6 +3037,12 @@ export class PaletteUI {
           insert: "@",
           title:
             "Search annotations only\nExample: @ highlighted text in papers",
+        },
+        {
+          label: "=phrase",
+          insert: "=",
+          title:
+            "Search indexed PDF text as an exact phrase\nExample: =transformer architecture",
         },
       ];
     for (const hint of filterHints) {
