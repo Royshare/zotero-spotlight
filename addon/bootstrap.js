@@ -10,6 +10,12 @@ var chromeHandle;
 function install(data, reason) {}
 
 async function startup({ id, version, resourceURI, rootURI }, reason) {
+  await Zotero.initializationPromise;
+
+  if (!rootURI) {
+    rootURI = resourceURI.spec;
+  }
+
   var aomStartup = Components.classes[
     "@mozilla.org/addons/addon-manager-startup;1"
   ].getService(Components.interfaces.amIAddonManagerStartup);
@@ -42,12 +48,28 @@ async function onMainWindowUnload({ window }, reason) {
   await Zotero.__addonInstance__?.hooks.onMainWindowUnload(window);
 }
 
-async function shutdown({ id, version, resourceURI, rootURI }, reason) {
+function shutdown({ id, version, resourceURI, rootURI }, reason) {
   if (reason === APP_SHUTDOWN) {
     return;
   }
 
-  await Zotero.__addonInstance__?.hooks.onShutdown();
+  if (!rootURI) {
+    rootURI = resourceURI.spec;
+  }
+
+  if (typeof Zotero === "undefined") {
+    Zotero = Components.classes["@zotero.org/Zotero;1"].getService(
+      Components.interfaces.nsISupports,
+    ).wrappedJSObject;
+  }
+
+  Zotero.__addonInstance__?.hooks.onShutdown();
+
+  Cc["@mozilla.org/intl/stringbundle;1"]
+    .getService(Components.interfaces.nsIStringBundleService)
+    .flushBundles();
+
+  Cu.unload(`${rootURI}/content/scripts/__addonRef__.js`);
 
   if (chromeHandle) {
     chromeHandle.destruct();
