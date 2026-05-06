@@ -341,11 +341,12 @@ export class PaletteUI {
         void this.activateSelectedPanelAction();
         return;
       }
-      const intent: OpenIntent = event.shiftKey
-        ? "reveal"
-        : event.metaKey || event.ctrlKey
-          ? "alternate"
-          : "default";
+      const intent: OpenIntent =
+        event.metaKey || event.ctrlKey
+          ? "reveal"
+          : event.shiftKey
+            ? "alternate"
+            : "default";
       void this.activateSelection(intent);
     }
   }
@@ -709,8 +710,18 @@ export class PaletteUI {
         this.input.focus();
         this.updateSelectionState();
       });
-      row.addEventListener("click", () => {
-        void this.activateSelection("default");
+      row.addEventListener("click", (event: MouseEvent) => {
+        const intent: OpenIntent =
+          event.metaKey || event.ctrlKey
+            ? "reveal"
+            : event.shiftKey
+              ? "alternate"
+              : "default";
+        void this.activateSelection(intent);
+      });
+      row.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+        this.openActionsPanel();
       });
       this.list.appendChild(row);
     });
