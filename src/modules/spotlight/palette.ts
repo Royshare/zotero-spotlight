@@ -391,6 +391,7 @@ export class PaletteUI {
         });
       }
       this.results = tabResults;
+      await this.markBestAttachmentBadges(this.results);
       this.sectionHeader = `Open Tabs (${tabResults.length})`;
       this.displayMode = "search";
       this.selectedIndex = 0;
@@ -399,6 +400,7 @@ export class PaletteUI {
     }
     if (!parsedQuery.isCommandMode && !this.currentQuery) {
       this.results = this.buildRecentResults();
+      await this.markBestAttachmentBadges(this.results);
       this.sectionHeader = "Recent";
       this.displayMode = "recent";
       this.selectedIndex = 0;
@@ -426,6 +428,7 @@ export class PaletteUI {
       return;
     }
     this.results = results;
+    await this.markBestAttachmentBadges(this.results);
     this.panelMode = "preview";
     this.selectedActionIndex = 0;
     this.updateBodyMode();
@@ -454,6 +457,23 @@ export class PaletteUI {
     this.selectedIndex = nextIndex;
     this.selectedActionIndex = 0;
     this.updateSelectionState();
+  }
+
+  private async markBestAttachmentBadges(
+    results: Array<QuickOpenResult | CommandResult | HistoryResult>,
+  ): Promise<void> {
+    for (const result of results) {
+      if (result.kind !== "attachment") {
+        continue;
+      }
+      const attachment = Zotero.Items.get(result.id) as Zotero.Item | null;
+      const parent = attachment ? getAttachmentParentItem(attachment) : null;
+      (
+        result as QuickOpenResult & { isBestAttachment?: boolean }
+      ).isBestAttachment =
+        !!parent?.isRegularItem?.() &&
+        (await getBestOpenableAttachmentID(parent)) === result.id;
+    }
   }
 
   private moveActionSelection(delta: number): void {
@@ -2893,9 +2913,18 @@ export class PaletteUI {
       badges.push("GROUP");
     }
 
-    badges.forEach((label) => {
+    const isBestAttachment =
+      result.kind === "attachment" &&
+      (result as QuickOpenResult & { isBestAttachment?: boolean })
+        .isBestAttachment === true;
+    badges.forEach((label, index) => {
       const badge = this.createElement("span", "spotlight-tag");
       badge.textContent = label;
+      if (isBestAttachment && index === 0) {
+        badge.style.color = "var(--tag-green)";
+        badge.title = "Best attachment";
+        badge.setAttribute("aria-label", "Best attachment");
+      }
       row.appendChild(badge);
     });
     if (isOpenTab) {
