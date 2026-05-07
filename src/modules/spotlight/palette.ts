@@ -1006,6 +1006,7 @@ export class PaletteUI {
   font-size: 16px;
   font-weight: 700;
   line-height: 1.3;
+  overflow-wrap: anywhere;
   color: var(--quick-open-text);
 }
 
