@@ -50,6 +50,17 @@ type PanelAction = {
   run: () => Promise<void>;
 };
 
+type ShortcutGuideEntry = {
+  label: string;
+  shortcut: string;
+  detail?: string;
+};
+
+type ShortcutGuideSection = {
+  title: string;
+  entries: ShortcutGuideEntry[];
+};
+
 export class PaletteUI {
   private win: Window;
   private doc: Document;
@@ -68,6 +79,7 @@ export class PaletteUI {
   private results: Array<QuickOpenResult | CommandResult | HistoryResult> = [];
   private selectedIndex = 0;
   private panelMode: "preview" | "actions" = "preview";
+  private viewMode: "search" | "shortcuts" = "search";
   private selectedActionIndex = 0;
   private open = false;
   private searchToken = 0;
@@ -161,7 +173,17 @@ export class PaletteUI {
     }
   }
 
+  toggleShortcutGuide(): void {
+    if (this.open && this.viewMode === "shortcuts") {
+      this.hide();
+      return;
+    }
+    this.showShortcutGuide();
+  }
+
   show(): void {
+    this.viewMode = "search";
+    this.input.placeholder = "Spotlight...";
     this.open = true;
     this.root.classList.remove("is-animate");
     this.root.style.display = "block";
@@ -222,10 +244,41 @@ export class PaletteUI {
     this.updateBodyMode();
   }
 
+  showShortcutGuide(): void {
+    this.viewMode = "shortcuts";
+    this.open = true;
+    this.panelMode = "preview";
+    this.selectedActionIndex = 0;
+    this.root.classList.remove("is-animate");
+    this.root.style.display = "block";
+    this.root.classList.add("is-animate");
+    if (this.previewPanel) {
+      this.previewPanel.style.maxHeight = getWindowHeight() + "px";
+    }
+    if (this.root) {
+      this.root.style.width = getWindowWidth() + "px";
+    }
+    this.input.placeholder = "Filter shortcuts...";
+    this.input.value = "";
+    this.closeAutocomplete();
+    this.updateFilterHintBar("");
+    if (this.collectionBar) {
+      this.collectionBar.style.display = "none";
+    }
+    this.renderShortcutGuide("");
+    this.input.focus();
+    this.input.select();
+    this.updateBodyMode();
+  }
+
   hide(): void {
     this.open = false;
-    this._savedQuery = this.input.value;
+    if (this.viewMode !== "shortcuts") {
+      this._savedQuery = this.input.value;
+    }
     this._savedScrollTop = this.list.scrollTop;
+    this.viewMode = "search";
+    this.input.placeholder = "Spotlight...";
     this.root.style.display = "none";
     this.closeAutocomplete();
     this.updateBodyMode();
@@ -241,6 +294,10 @@ export class PaletteUI {
   private bindEvents(): void {
     this.input.addEventListener("input", () => {
       const query = this.input.value;
+      if (this.viewMode === "shortcuts") {
+        this.renderShortcutGuide(query);
+        return;
+      }
       void this.updateResults(query);
       this.updateFilterHintBar(query);
       this.updateAutocomplete(query, this.input.selectionStart ?? query.length);
@@ -257,6 +314,17 @@ export class PaletteUI {
 
   private handleKeydown(event: KeyboardEvent): void {
     if (!this.open) {
+      return;
+    }
+    if (this.viewMode === "shortcuts") {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        this.hide();
+        return;
+      }
+      if (event.key === "Tab") {
+        event.preventDefault();
+      }
       return;
     }
     // Autocomplete interception
@@ -779,6 +847,288 @@ export class PaletteUI {
     this.renderPreview();
   }
 
+  private renderShortcutGuide(query: string): void {
+    if (!this.previewPanel) {
+      return;
+    }
+    const normalizedQuery = normalize(query);
+    const sections = this.getShortcutGuideSections()
+      .map((section) => ({
+        ...section,
+        entries: section.entries.filter((entry) => {
+          if (!normalizedQuery) {
+            return true;
+          }
+          return normalize(
+            `${entry.label} ${entry.shortcut} ${entry.detail || ""}`,
+          ).includes(normalizedQuery);
+        }),
+      }))
+      .filter((section) => section.entries.length);
+
+    this.previewPanel.textContent = "";
+    const container = this.createElement("div", "spotlight-shortcut-guide");
+    const header = this.createElement("div", "spotlight-shortcut-guide-header");
+    const title = this.createElement("div", "spotlight-shortcut-guide-title");
+    title.textContent = "Keyboard Shortcuts";
+    const subtitle = this.createElement(
+      "div",
+      "spotlight-shortcut-guide-subtitle",
+    );
+    subtitle.textContent = normalizedQuery
+      ? `Filtered by "${query.trim()}".`
+      : "A quick-reference page for Spotlight and the current Zotero window.";
+    header.appendChild(title);
+    header.appendChild(subtitle);
+    container.appendChild(header);
+
+    if (!sections.length) {
+      container.appendChild(
+        this.createPreviewEmpty(
+          "No shortcuts matched this filter.",
+          "Try a menu name, action name, or part of the key combination.",
+        ),
+      );
+      this.previewPanel.appendChild(container);
+      return;
+    }
+
+    sections.forEach((section) => {
+      const sectionNode = this.createElement(
+        "div",
+        "spotlight-shortcut-section",
+      );
+      const sectionTitle = this.createElement(
+        "div",
+        "spotlight-shortcut-section-title",
+      );
+      sectionTitle.textContent = section.title;
+      const grid = this.createElement("div", "spotlight-shortcut-grid");
+      section.entries.forEach((entry) => {
+        const card = this.createElement("div", "spotlight-shortcut-card");
+        const cardHeader = this.createElement(
+          "div",
+          "spotlight-shortcut-card-header",
+        );
+        const label = this.createElement("div", "spotlight-shortcut-label");
+        label.textContent = entry.label;
+        const shortcut = this.createElement("div", "spotlight-shortcut-key");
+        shortcut.textContent = entry.shortcut;
+        cardHeader.appendChild(label);
+        cardHeader.appendChild(shortcut);
+        card.appendChild(cardHeader);
+        if (entry.detail) {
+          const detail = this.createElement("div", "spotlight-shortcut-detail");
+          detail.textContent = entry.detail;
+          card.appendChild(detail);
+        }
+        grid.appendChild(card);
+      });
+      sectionNode.appendChild(sectionTitle);
+      sectionNode.appendChild(grid);
+      container.appendChild(sectionNode);
+    });
+
+    this.previewPanel.appendChild(container);
+  }
+
+  private getShortcutGuideSections(): ShortcutGuideSection[] {
+    return [
+      {
+        title: "Spotlight",
+        entries: [
+          {
+            label: "Open Spotlight",
+            shortcut: this.getSpotlightToggleShortcutLabel(),
+            detail:
+              "Open the library-wide switcher from the main window, reader, or notes.",
+          },
+          {
+            label: "Open this shortcuts page",
+            shortcut: `${getModifierKeyLabel()}+/`,
+            detail:
+              "Uses the existing preview surface as a quick-reference page.",
+          },
+          {
+            label: "Open actions / preview",
+            shortcut: "Right Arrow",
+            detail:
+              "Inspect the selected result and switch into the action rail.",
+          },
+          {
+            label: "Back to results",
+            shortcut: "Left Arrow",
+            detail:
+              "Leave the preview action rail and return to the result list.",
+          },
+          {
+            label: "Open selected result",
+            shortcut: "Enter",
+            detail: "Open the selected item, note, attachment, or command.",
+          },
+          {
+            label: "Reveal selected result in library",
+            shortcut: "Shift+Enter",
+            detail:
+              "Jump the Zotero library selection without breaking the keyboard flow.",
+          },
+          {
+            label: "Alternate open",
+            shortcut: `${getModifierKeyLabel()}+Enter`,
+            detail: "Use the alternate open behavior for the selected result.",
+          },
+          {
+            label: "Command mode",
+            shortcut: ">",
+            detail:
+              "Type `>` to search Spotlight commands instead of library items.",
+          },
+          {
+            label: "List open tabs",
+            shortcut: ">tabs",
+            detail:
+              "Jump across currently open Zotero tabs from the same palette.",
+          },
+        ],
+      },
+      ...this.collectWindowShortcutSections(),
+    ];
+  }
+
+  private collectWindowShortcutSections(): ShortcutGuideSection[] {
+    const docs = [this.win.document];
+    const mainDoc = Zotero.getMainWindow()?.document;
+    if (mainDoc && mainDoc !== this.win.document) {
+      docs.push(mainDoc);
+    }
+    const keyMap = new Map<string, string>();
+    docs.forEach((doc) => this.populateKeyMap(doc, keyMap));
+    const sections = new Map<string, ShortcutGuideEntry[]>();
+    const seen = new Set<string>();
+    docs.forEach((doc) => {
+      const items = Array.from(doc.querySelectorAll("menuitem[key]"));
+      items.forEach((node) => {
+        const element = node as Element;
+        if (
+          element.getAttribute("hidden") === "true" ||
+          element.getAttribute("disabled") === "true"
+        ) {
+          return;
+        }
+        const keyRef = element.getAttribute("key");
+        const shortcut = keyRef ? keyMap.get(keyRef) : null;
+        const label = this.getNodeLabel(element);
+        if (!shortcut || !label) {
+          return;
+        }
+        const sectionTitle = this.getTopMenuLabel(element) || "Zotero";
+        const detail = this.getShortcutMenuPath(element, sectionTitle);
+        const dedupeKey = `${sectionTitle}::${label}::${shortcut}`;
+        if (seen.has(dedupeKey)) {
+          return;
+        }
+        seen.add(dedupeKey);
+        const entries = sections.get(sectionTitle) || [];
+        entries.push({ label, shortcut, detail });
+        sections.set(sectionTitle, entries);
+      });
+    });
+    return Array.from(sections.entries())
+      .map(([title, entries]) => ({
+        title,
+        entries: entries
+          .sort((a, b) => a.label.localeCompare(b.label))
+          .slice(0, 14),
+      }))
+      .sort(
+        (a, b) =>
+          this.getShortcutSectionOrder(a.title) -
+          this.getShortcutSectionOrder(b.title),
+      );
+  }
+
+  private populateKeyMap(
+    doc: Document,
+    destination: Map<string, string>,
+  ): void {
+    Array.from(doc.querySelectorAll("key[id]")).forEach((node) => {
+      const element = node as Element;
+      const id = element.getAttribute("id");
+      if (!id || destination.has(id)) {
+        return;
+      }
+      const shortcut = formatKeyElementShortcut(element);
+      if (shortcut) {
+        destination.set(id, shortcut);
+      }
+    });
+  }
+
+  private getNodeLabel(node: Element): string {
+    const raw =
+      node.getAttribute("label") ||
+      (node as any).label ||
+      node.getAttribute("aria-label") ||
+      "";
+    return String(raw).replace(/\s+/g, " ").trim();
+  }
+
+  private getTopMenuLabel(node: Element): string {
+    let current: Element | null = node.parentElement;
+    let topMenuLabel = "";
+    while (current) {
+      if (current.localName === "menu") {
+        const label = this.getNodeLabel(current);
+        if (label) {
+          topMenuLabel = label;
+        }
+      }
+      current = current.parentElement;
+    }
+    return topMenuLabel;
+  }
+
+  private getShortcutMenuPath(node: Element, sectionTitle: string): string {
+    const trail: string[] = [];
+    let current: Element | null = node.parentElement;
+    while (current) {
+      if (current.localName === "menu") {
+        const label = this.getNodeLabel(current);
+        if (label && label !== sectionTitle) {
+          trail.unshift(label);
+        }
+      }
+      current = current.parentElement;
+    }
+    return trail.length ? trail.join(" > ") : "Current window";
+  }
+
+  private getShortcutSectionOrder(title: string): number {
+    const normalized = title.toLowerCase();
+    const order = [
+      "file",
+      "edit",
+      "view",
+      "go",
+      "item",
+      "tools",
+      "reader",
+      "help",
+      "zotero",
+    ];
+    const index = order.indexOf(normalized);
+    return index >= 0 ? index : order.length + normalized.charCodeAt(0);
+  }
+
+  private getSpotlightToggleShortcutLabel(): string {
+    const modifier = getModifierKeyLabel();
+    const shortcutMode = (getPref("shortcutMode") || "primary") as string;
+    if (shortcutMode === "fallback") {
+      return `${modifier}+Shift+P`;
+    }
+    return `${modifier}+P`;
+  }
+
   private createRoot(): HTMLDivElement {
     const root = this.createElement("div", "spotlight-root") as HTMLDivElement;
     root.id = "zotero-spotlight-root";
@@ -968,6 +1318,17 @@ export class PaletteUI {
 
 .spotlight-body.is-panel-open #zotero-spotlight-preview-panel {
   display: block;
+}
+
+#zotero-spotlight-root.is-shortcut-guide #zotero-spotlight-filter-hint-bar,
+#zotero-spotlight-root.is-shortcut-guide .spotlight-list-pane,
+#zotero-spotlight-root.is-shortcut-guide #zotero-spotlight-collection-bar {
+  display: none !important;
+}
+
+#zotero-spotlight-root.is-shortcut-guide #zotero-spotlight-preview-panel {
+  display: block;
+  min-height: 360px;
 }
 
 .spotlight-result {
@@ -1190,6 +1551,92 @@ export class PaletteUI {
   height: 8px;
   border-radius: 999px;
   flex: 0 0 auto;
+}
+
+.spotlight-shortcut-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.spotlight-shortcut-guide-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--quick-open-border);
+}
+
+.spotlight-shortcut-guide-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--quick-open-text);
+}
+
+.spotlight-shortcut-guide-subtitle {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--quick-open-subtext);
+}
+
+.spotlight-shortcut-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.spotlight-shortcut-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--quick-open-subtext);
+}
+
+.spotlight-shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px;
+}
+
+.spotlight-shortcut-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--quick-open-border);
+  border-radius: 10px;
+  background: var(--quick-open-bg);
+}
+
+.spotlight-shortcut-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.spotlight-shortcut-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--quick-open-text);
+}
+
+.spotlight-shortcut-key {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--quick-open-meta-chip-bg);
+  color: var(--quick-open-meta-chip-text);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.spotlight-shortcut-detail {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--quick-open-subtext);
 }
 
 @media (max-width: 760px) {
@@ -1465,10 +1912,21 @@ export class PaletteUI {
     if (!this.body) {
       return;
     }
-    this.body.classList.toggle("is-panel-open", this.panelMode === "actions");
+    const previewVisible =
+      this.panelMode === "actions" || this.viewMode === "shortcuts";
+    this.body.classList.toggle("is-panel-open", previewVisible);
+    this.root.classList.toggle(
+      "is-shortcut-guide",
+      this.viewMode === "shortcuts",
+    );
     if (this.previewModeHeader) {
-      this.previewModeHeader.style.display =
-        this.panelMode === "actions" ? "block" : "none";
+      this.previewModeHeader.style.display = previewVisible ? "block" : "none";
+      this.previewModeHeader.textContent =
+        this.viewMode === "shortcuts"
+          ? "Shortcut Guide"
+          : this.panelMode === "actions"
+            ? "Preview"
+            : "";
     }
   }
 
@@ -3263,4 +3721,78 @@ function getWindowWidth(): number {
   const raw = Number((getPref as any)("windowWidth"));
   if (Number.isNaN(raw) || raw <= 0) return 560;
   return Math.min(1200, Math.max(300, raw));
+}
+
+function getModifierKeyLabel(): string {
+  return Zotero.isMac ? "Cmd" : "Ctrl";
+}
+
+function normalize(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function formatKeyElementShortcut(element: Element): string {
+  const modifiers = String(element.getAttribute("modifiers") || "")
+    .split(/[,\s]+/)
+    .map((part) => part.trim().toLowerCase())
+    .filter(Boolean)
+    .map((part) => {
+      if (part === "accel") {
+        return getModifierKeyLabel();
+      }
+      if (part === "meta") {
+        return "Cmd";
+      }
+      if (part === "control" || part === "ctrl") {
+        return "Ctrl";
+      }
+      if (part === "alt") {
+        return Zotero.isMac ? "Opt" : "Alt";
+      }
+      if (part === "shift") {
+        return "Shift";
+      }
+      return part.charAt(0).toUpperCase() + part.slice(1);
+    });
+  const key =
+    element.getAttribute("key") ||
+    normalizeKeycode(String(element.getAttribute("keycode") || ""));
+  const normalizedKey = String(key || "").trim();
+  if (!normalizedKey) {
+    return "";
+  }
+  return [...modifiers, normalizedKey].join("+");
+}
+
+function normalizeKeycode(value: string): string {
+  const normalized = value.replace(/^VK_/, "");
+  const namedKeys: Record<string, string> = {
+    RETURN: "Enter",
+    ENTER: "Enter",
+    ESCAPE: "Esc",
+    DELETE: "Delete",
+    BACK: "Backspace",
+    BACK_SPACE: "Backspace",
+    SPACE: "Space",
+    TAB: "Tab",
+    PAGE_UP: "PgUp",
+    PAGE_DOWN: "PgDn",
+    UP: "Up",
+    DOWN: "Down",
+    LEFT: "Left",
+    RIGHT: "Right",
+    HOME: "Home",
+    END: "End",
+  };
+  if (namedKeys[normalized]) {
+    return namedKeys[normalized];
+  }
+  return normalized
+    .split("_")
+    .map((part) =>
+      part.length <= 1
+        ? part.toUpperCase()
+        : part.charAt(0) + part.slice(1).toLowerCase(),
+    )
+    .join(" ");
 }

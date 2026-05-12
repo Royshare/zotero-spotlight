@@ -41,6 +41,12 @@ export class WindowManager {
     }
     const palette = new PaletteUI(win, this.searchService, new ActionHandler());
     const handler = (event: KeyboardEvent) => {
+      if (isShortcutGuideEvent(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        palette.toggleShortcutGuide();
+        return;
+      }
       if (!isToggleEvent(event)) {
         return;
       }
@@ -178,4 +184,16 @@ function isToggleEvent(event: KeyboardEvent): boolean {
     return !event.shiftKey;
   }
   return true;
+}
+
+function isShortcutGuideEvent(event: KeyboardEvent): boolean {
+  if (event.altKey || event.shiftKey) {
+    return false;
+  }
+  const modifier = Zotero.isMac ? event.metaKey : event.ctrlKey;
+  if (!modifier) {
+    return false;
+  }
+  const key = event.key?.toLowerCase();
+  return key === "/" || event.code === "Slash";
 }

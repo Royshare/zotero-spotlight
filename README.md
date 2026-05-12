@@ -29,6 +29,7 @@ Spotlight is different:
 ## Features
 
 - Open Spotlight with one shortcut: `Cmd+P` on macOS, `Ctrl+P` on Windows/Linux.
+- Open a shortcut cheat sheet with `Cmd+/` on macOS, `Ctrl+/` on Windows/Linux.
 - Works in the main Zotero window, reader, and note editor.
 
 ### 1. Search, Switch, Filter
