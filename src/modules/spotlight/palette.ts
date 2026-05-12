@@ -991,8 +991,127 @@ export class PaletteUI {
           },
         ],
       },
+      {
+        title: "Frequent Zotero",
+        entries: this.getFrequentZoteroShortcuts(),
+      },
+      ...this.collectSpotlightCommandSections(),
       ...this.collectWindowShortcutSections(),
     ];
+  }
+
+  private getFrequentZoteroShortcuts(): ShortcutGuideEntry[] {
+    const modifier = getModifierKeyLabel();
+    const alt = Zotero.isMac ? "Opt" : "Alt";
+    const nextTab = Zotero.isMac ? "Cmd+Shift+]" : "Ctrl+Tab";
+    const previousTab = Zotero.isMac ? "Cmd+Shift+[" : "Ctrl+Shift+Tab";
+    const readerBack = Zotero.isMac ? "Cmd+[" : "Alt+Left";
+    const readerForward = Zotero.isMac ? "Cmd+]" : "Alt+Right";
+    return [
+      {
+        label: "Quick Search in current view",
+        shortcut: `${modifier}+F`,
+        detail:
+          "Focus Zotero's built-in search box for the current library or collection.",
+      },
+      {
+        label: "Quick Search everywhere",
+        shortcut: `${modifier}+Shift+K`,
+        detail: "Jump to Zotero's quick-search field from anywhere in the app.",
+      },
+      {
+        label: "Create new item",
+        shortcut: `${modifier}+Shift+N`,
+        detail: "Add a new bibliographic item by hand.",
+      },
+      {
+        label: "Create new note",
+        shortcut: `${modifier}+Shift+O`,
+        detail: "Create a standalone or child note from the current context.",
+      },
+      {
+        label: "Toggle tag selector",
+        shortcut: `${modifier}+Shift+T`,
+        detail: "Show or hide the tag selector in the Zotero pane.",
+      },
+      {
+        label: "Jump between tabs",
+        shortcut: `${modifier}+1-9`,
+        detail:
+          "Use number keys to switch between the library and open reader tabs.",
+      },
+      {
+        label: "Next tab",
+        shortcut: nextTab,
+        detail: "Move to the next Zotero tab.",
+      },
+      {
+        label: "Previous tab",
+        shortcut: previousTab,
+        detail: "Move to the previous Zotero tab.",
+      },
+      {
+        label: "PDF annotation tools",
+        shortcut: `${alt}+1..4`,
+        detail: "Switch between reader annotation tools inside the PDF view.",
+      },
+      {
+        label: "PDF link back",
+        shortcut: readerBack,
+        detail: "Go back after following an in-PDF link.",
+      },
+      {
+        label: "PDF link forward",
+        shortcut: readerForward,
+        detail: "Go forward after navigating back in a PDF.",
+      },
+    ];
+  }
+
+  private collectSpotlightCommandSections(): ShortcutGuideSection[] {
+    const availableCommands = this.commandRegistry.listAvailable(
+      this.win,
+      "",
+      200,
+    );
+    const externalCommandIDs = new Set(CommandRegistry.listExternalCommands());
+    const builtInEntries = availableCommands
+      .filter(
+        (command) =>
+          !externalCommandIDs.has(command.commandId) && !!command.shortcut,
+      )
+      .map((command) => this.createCommandShortcutEntry(command))
+      .slice(0, 10);
+    const externalEntries = availableCommands
+      .filter(
+        (command) =>
+          externalCommandIDs.has(command.commandId) && !!command.shortcut,
+      )
+      .map((command) => this.createCommandShortcutEntry(command));
+    const sections: ShortcutGuideSection[] = [];
+    if (builtInEntries.length) {
+      sections.push({
+        title: "Spotlight Commands",
+        entries: builtInEntries,
+      });
+    }
+    if (externalEntries.length) {
+      sections.push({
+        title: "Plugin Commands",
+        entries: externalEntries,
+      });
+    }
+    return sections;
+  }
+
+  private createCommandShortcutEntry(
+    command: CommandResult,
+  ): ShortcutGuideEntry {
+    return {
+      label: command.title,
+      shortcut: command.shortcut || "",
+      detail: command.subtitle,
+    };
   }
 
   private collectWindowShortcutSections(): ShortcutGuideSection[] {

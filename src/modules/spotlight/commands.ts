@@ -96,6 +96,10 @@ export class CommandRegistry {
     win: Window,
     limit = 20,
   ): Promise<CommandResult[]> {
+    return this.listAvailable(win, query, limit);
+  }
+
+  listAvailable(win: Window, query = "", limit = 200): CommandResult[] {
     const runContext = this.getRunContext(win);
     const normalizedQuery = normalize(query);
     const results: CommandResult[] = [];
