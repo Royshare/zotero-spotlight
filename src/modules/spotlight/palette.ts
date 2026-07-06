@@ -2166,8 +2166,7 @@ export class PaletteUI {
   }> {
     const tabs = ((this.win as any).Zotero_Tabs ||
       Zotero.getMainWindow()?.Zotero_Tabs) as
-      | _ZoteroTypes.Zotero_Tabs
-      | undefined;
+      _ZoteroTypes.Zotero_Tabs | undefined;
     if (tabs?._tabs && Array.isArray(tabs._tabs)) {
       return tabs._tabs
         .filter((tab) => tab.id !== "zotero-pane")
@@ -2188,8 +2187,7 @@ export class PaletteUI {
     }
     const reader = (Zotero as any).Reader;
     const readers = reader?._readers as
-      | _ZoteroTypes.ReaderInstance[]
-      | undefined;
+      _ZoteroTypes.ReaderInstance[] | undefined;
     if (!readers || !Array.isArray(readers)) {
       return [];
     }
@@ -2203,11 +2201,9 @@ export class PaletteUI {
 
   private getActiveTabItemID(): number | null {
     const localTabs = (this.win as any).Zotero_Tabs as
-      | _ZoteroTypes.Zotero_Tabs
-      | undefined;
+      _ZoteroTypes.Zotero_Tabs | undefined;
     const mainTabs = Zotero.getMainWindow()?.Zotero_Tabs as
-      | _ZoteroTypes.Zotero_Tabs
-      | undefined;
+      _ZoteroTypes.Zotero_Tabs | undefined;
     if (localTabs) {
       const tabID = localTabs.selectedID;
       if (tabID && localTabs._tabs) {
@@ -2219,8 +2215,7 @@ export class PaletteUI {
     }
     const reader = (Zotero as any).Reader;
     const readers = reader?._readers as
-      | _ZoteroTypes.ReaderInstance[]
-      | undefined;
+      _ZoteroTypes.ReaderInstance[] | undefined;
     if (!readers || !Array.isArray(readers)) {
       return null;
     }
@@ -2246,8 +2241,7 @@ export class PaletteUI {
       return null;
     }
     const filename = (attachment as any).attachmentFilename as
-      | string
-      | undefined;
+      string | undefined;
     const title = filename || getItemTitleSafe(attachment);
     const parent = getAttachmentParentItem(attachment);
     const subtitle = parent ? getItemTitleSafe(parent) : "";
@@ -2661,10 +2655,7 @@ export class PaletteUI {
   }
 
   private getSelectedResult():
-    | QuickOpenResult
-    | CommandResult
-    | HistoryResult
-    | null {
+    QuickOpenResult | CommandResult | HistoryResult | null {
     return this.results[this.selectedIndex] || null;
   }
 
@@ -3721,7 +3712,9 @@ export class PaletteUI {
   private updateFilterHintBar(query: string): void {
     if (!this.filterHintBar) return;
     const enabled = (getPref as any)("showFilterHintBar");
-    const show = (enabled === undefined || enabled === null ? true : !!enabled) && query.trim() === "";
+    const show =
+      (enabled === undefined || enabled === null ? true : !!enabled) &&
+      query.trim() === "";
     this.filterHintBar.style.display = show ? "flex" : "none";
   }
 
