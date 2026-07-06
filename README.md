@@ -29,21 +29,25 @@ Spotlight is different:
 ## Features
 
 - Open Spotlight with one shortcut: `Cmd+P` on macOS, `Ctrl+P` on Windows/Linux.
-- Open a shortcut cheat sheet with `Cmd+/` on macOS, `Ctrl+/` on Windows/Linux.
+- Open a full keyboard shortcut reference with `Cmd+/` on macOS, `Ctrl+/` on Windows/Linux.
 - Works in the main Zotero window, reader, and note editor.
 
 ### 1. Search, Switch, Filter
 
 - Search across your library with fuzzy matching instead of being limited to the current collection.
 - Switch between items, notes, PDFs, annotations, and open tabs from one place.
-- Narrow results with `type:`, `tag:`, and `year:` filters, including combinations like `type:pdf year:2024`, or use `@query` to search annotations directly.
-- Use richer result rows and press `Right Arrow` on a selected result to open preview details and contextual actions.
+- Narrow results with filter sigils: `:pdf`, `:note`, `#tag`, `y:2024` — combinable, e.g. `:pdf y:2020-2024 neural`.
+- Search annotations directly with `@query`, or search indexed PDF text as an exact phrase with `=phrase`.
+- A filter hint bar below the search input shows all available filters as clickable badges; typing `:` or `#` triggers inline autocomplete.
+- Use richer result rows and press `Right Arrow` or right-click a result to open preview details and contextual actions.
 - Jump annotation results directly to the matching location in the PDF, with improved annotation-focused search relevance.
 - Get ranking boosts from recency, frequency, library scope, and recent-search history per window.
+- The primary/best attachment for each item is highlighted with a green badge in the result list.
 
 ### 2. Commands and Workflows
 
 - Use `>` to enter command mode for built-in actions like `New Note`, `Copy Citation`, `Copy Bibliography`, `Open Collection`, and `Show PDF/EPUB/Snapshot in Finder/Explorer`.
+- Run `>add note + open best attachment` to create a note and immediately open the item's primary PDF, EPUB, or Snapshot in one step.
 - Run reusable workflows like `>literature note` and `>extract highlights` for common research tasks.
 - Use `>tabs` to search and switch across currently open Zotero tabs.
 - Trigger context-aware commands based on the current Zotero window and selected item.
