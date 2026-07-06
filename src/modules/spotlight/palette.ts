@@ -3720,7 +3720,9 @@ export class PaletteUI {
 
   private updateFilterHintBar(query: string): void {
     if (!this.filterHintBar) return;
-    this.filterHintBar.style.display = query.trim() === "" ? "flex" : "none";
+    const enabled = (getPref as any)("showFilterHintBar");
+    const show = (enabled === undefined || enabled === null ? true : !!enabled) && query.trim() === "";
+    this.filterHintBar.style.display = show ? "flex" : "none";
   }
 
   // ── Colon-triggered autocomplete (Option A) ────────────────────────────────

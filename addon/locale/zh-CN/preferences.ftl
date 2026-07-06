@@ -16,4 +16,5 @@ pref-window-width = 宽度 (px)
 pref-search-section = 搜索
 pref-search-annotations = 搜索批注
 pref-restore-search = 重新打开 Spotlight 时恢复上一次搜索
+pref-show-filter-hint-bar = 显示过滤提示栏
 pref-reset-defaults = 恢复默认设置
