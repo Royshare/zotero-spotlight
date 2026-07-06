@@ -1006,6 +1006,7 @@ export class PaletteUI {
   font-size: 16px;
   font-weight: 700;
   line-height: 1.3;
+  overflow-wrap: anywhere;
   color: var(--quick-open-text);
 }
 
@@ -1013,6 +1014,7 @@ export class PaletteUI {
   margin-top: 4px;
   font-size: 12px;
   line-height: 1.45;
+  overflow-wrap: anywhere;
   color: var(--quick-open-subtext);
 }
 
