@@ -18,12 +18,7 @@ export type SearchRankingState = {
 
 export type ResultKind = "item" | "attachment" | "annotation";
 export type ResultType =
-  | "item"
-  | "note"
-  | "pdf"
-  | "epub"
-  | "snapshot"
-  | "annotation";
+  "item" | "note" | "pdf" | "epub" | "snapshot" | "annotation";
 
 export interface BaseResult {
   id: number;
@@ -308,8 +303,7 @@ export class SearchService {
 
   private getActiveLibraryID(win: Window): number | null {
     const localPane = (win as any).ZoteroPane as
-      | _ZoteroTypes.ZoteroPane
-      | undefined;
+      _ZoteroTypes.ZoteroPane | undefined;
     const mainPane = Zotero.getMainWindow()?.ZoteroPane;
     const activePane =
       localPane || mainPane || (Zotero.getActiveZoteroPane?.() as any);

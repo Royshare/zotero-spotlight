@@ -68,7 +68,8 @@ function syncPrefUI() {
   ) as HTMLInputElement | null;
   if (filterHintBarCheckbox) {
     const val = (getPref as any)("showFilterHintBar");
-    filterHintBarCheckbox.checked = val === undefined || val === null ? true : !!val;
+    filterHintBarCheckbox.checked =
+      val === undefined || val === null ? true : !!val;
   }
 }
 

@@ -189,8 +189,7 @@ export class CommandRegistry {
     pane: _ZoteroTypes.ZoteroPane | null,
   ): Zotero.Item | null {
     const selectedItem = pane?.getSelectedItems?.()?.[0] as
-      | Zotero.Item
-      | undefined;
+      Zotero.Item | undefined;
     if (selectedItem) {
       return selectedItem;
     }
@@ -663,8 +662,7 @@ function isLibraryTabActive(
   mainWindow: _ZoteroTypes.MainWindow | null,
 ): boolean {
   const localTabs = (win as any).Zotero_Tabs as
-    | _ZoteroTypes.Zotero_Tabs
-    | undefined;
+    _ZoteroTypes.Zotero_Tabs | undefined;
   if (localTabs?.selectedID) {
     return localTabs.selectedID === "zotero-pane";
   }
@@ -959,8 +957,7 @@ function escapeHTML(value: string): string {
 
 function getActiveTabItemID(win: Window): number | null {
   const localTabs = (win as any).Zotero_Tabs as
-    | _ZoteroTypes.Zotero_Tabs
-    | undefined;
+    _ZoteroTypes.Zotero_Tabs | undefined;
   if (localTabs) {
     const tabID = localTabs.selectedID;
     if (tabID && localTabs._tabs) {

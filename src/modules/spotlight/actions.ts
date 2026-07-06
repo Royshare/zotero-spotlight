@@ -129,8 +129,7 @@ export class ActionHandler {
         return;
       }
       const tabs = mainWindow?.Zotero_Tabs as
-        | _ZoteroTypes.Zotero_Tabs
-        | undefined;
+        _ZoteroTypes.Zotero_Tabs | undefined;
       const existingID = tabs?.getTabIDByItemID?.(itemID);
       if (existingID) {
         tabs?.select?.(existingID);
