@@ -1896,6 +1896,17 @@ export class PaletteUI {
   border-color: var(--quick-open-border-soft);
 }
 
+.spotlight-shortcut-guide-btn {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 0;
+  width: 22px;
+  height: 22px;
+  justify-content: center;
+  line-height: 1;
+  padding-bottom: 2px;
+}
+
 .spotlight-autocomplete {
   margin-top: 4px;
   background: var(--quick-open-input-bg);
@@ -3691,6 +3702,20 @@ export class PaletteUI {
         "Switch to command mode\nExample: > Open Tab by URL",
       ),
     );
+
+    // ── Shortcut guide button ────────────────────────────────────────────────
+    const shortcutBtn = this.createElement(
+      "button",
+      "spotlight-filter-hint-badge spotlight-shortcut-guide-btn",
+    ) as HTMLButtonElement;
+    shortcutBtn.textContent = "⌨";
+    shortcutBtn.title = `Keyboard shortcuts (${getModifierKeyLabel()}+/)`;
+    shortcutBtn.style.marginLeft = "auto";
+    shortcutBtn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      this.toggleShortcutGuide();
+    });
+    this.filterHintBar.appendChild(shortcutBtn);
   }
 
   private updateFilterHintBar(query: string): void {
