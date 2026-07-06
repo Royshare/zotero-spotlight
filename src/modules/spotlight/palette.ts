@@ -247,6 +247,14 @@ export class PaletteUI {
     });
   }
 
+  private getOpenIntent(event: MouseEvent | KeyboardEvent): OpenIntent {
+    return event.metaKey || event.ctrlKey
+      ? "reveal"
+      : event.shiftKey
+        ? "alternate"
+        : "default";
+  }
+
   private handleKeydown(event: KeyboardEvent): void {
     if (!this.open) {
       return;
@@ -341,12 +349,7 @@ export class PaletteUI {
         void this.activateSelectedPanelAction();
         return;
       }
-      const intent: OpenIntent = event.shiftKey
-        ? "reveal"
-        : event.metaKey || event.ctrlKey
-          ? "alternate"
-          : "default";
-      void this.activateSelection(intent);
+      void this.activateSelection(this.getOpenIntent(event));
     }
   }
 
@@ -734,8 +737,12 @@ export class PaletteUI {
         this.input.focus();
         this.updateSelectionState();
       });
-      row.addEventListener("click", () => {
-        void this.activateSelection("default");
+      row.addEventListener("click", (event: MouseEvent) => {
+        void this.activateSelection(this.getOpenIntent(event));
+      });
+      row.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+        this.openActionsPanel();
       });
       this.list.appendChild(row);
     });
