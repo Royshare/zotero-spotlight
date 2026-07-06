@@ -465,18 +465,20 @@ export class PaletteUI {
   private async markBestAttachmentBadges(
     results: Array<QuickOpenResult | CommandResult | HistoryResult>,
   ): Promise<void> {
-    for (const result of results) {
-      if (result.kind !== "attachment") {
-        continue;
-      }
-      const attachment = Zotero.Items.get(result.id) as Zotero.Item | null;
-      const parent = attachment ? getAttachmentParentItem(attachment) : null;
-      (
-        result as QuickOpenResult & { isBestAttachment?: boolean }
-      ).isBestAttachment =
-        !!parent?.isRegularItem?.() &&
-        (await getBestOpenableAttachmentID(parent)) === result.id;
-    }
+    await Promise.all(
+      results.map(async (result) => {
+        if (result.kind !== "attachment") {
+          return;
+        }
+        const attachment = Zotero.Items.get(result.id) as Zotero.Item | null;
+        const parent = attachment ? getAttachmentParentItem(attachment) : null;
+        (
+          result as QuickOpenResult & { isBestAttachment?: boolean }
+        ).isBestAttachment =
+          !!parent?.isRegularItem?.() &&
+          (await getBestOpenableAttachmentID(parent)) === result.id;
+      }),
+    );
   }
 
   private moveActionSelection(delta: number): void {
