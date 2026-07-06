@@ -392,6 +392,7 @@ export class PaletteUI {
       }
       this.results = tabResults;
       await this.markBestAttachmentBadges(this.results);
+      if (token !== this.searchToken) return;
       this.sectionHeader = `Open Tabs (${tabResults.length})`;
       this.displayMode = "search";
       this.selectedIndex = 0;
@@ -401,6 +402,7 @@ export class PaletteUI {
     if (!parsedQuery.isCommandMode && !this.currentQuery) {
       this.results = this.buildRecentResults();
       await this.markBestAttachmentBadges(this.results);
+      if (token !== this.searchToken) return;
       this.sectionHeader = "Recent";
       this.displayMode = "recent";
       this.selectedIndex = 0;
@@ -429,6 +431,7 @@ export class PaletteUI {
     }
     this.results = results;
     await this.markBestAttachmentBadges(this.results);
+    if (token !== this.searchToken) return;
     this.panelMode = "preview";
     this.selectedActionIndex = 0;
     this.updateBodyMode();
