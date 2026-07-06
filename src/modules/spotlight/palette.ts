@@ -1014,6 +1014,7 @@ export class PaletteUI {
   margin-top: 4px;
   font-size: 12px;
   line-height: 1.45;
+  overflow-wrap: anywhere;
   color: var(--quick-open-subtext);
 }
 
