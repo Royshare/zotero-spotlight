@@ -968,13 +968,13 @@ export class PaletteUI {
           },
           {
             label: "Reveal selected result in library",
-            shortcut: "Shift+Enter",
+            shortcut: `${getModifierKeyLabel()}+Enter`,
             detail:
               "Jump the Zotero library selection without breaking the keyboard flow.",
           },
           {
             label: "Alternate open",
-            shortcut: `${getModifierKeyLabel()}+Enter`,
+            shortcut: "Shift+Enter",
             detail: "Use the alternate open behavior for the selected result.",
           },
           {
