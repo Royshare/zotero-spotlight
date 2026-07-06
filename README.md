@@ -9,7 +9,7 @@
 Zotero Spotlight adds a **command-palette–style switcher** to Zotero.  
 Press one shortcut inside Zotero and jump to the paper you want.
 
-![intro](https://github.com/user-attachments/assets/72a63bf3-0d26-46f6-b278-cd2943c73a4d)
+[review](https://github.com/user-attachments/assets/ced3c2ae-31a2-40e5-9418-2d29553bca1e)
 
 ---
 
