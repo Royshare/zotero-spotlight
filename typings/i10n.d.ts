@@ -22,6 +22,7 @@ export type FluentMessageId =
   | 'pref-shortcut-fallback'
   | 'pref-shortcut-primary'
   | 'pref-shortcut-section'
+  | 'pref-show-filter-hint-bar'
   | 'pref-window-height'
   | 'pref-window-section'
   | 'pref-window-width'
