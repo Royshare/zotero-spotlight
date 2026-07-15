@@ -81,6 +81,8 @@ export class PaletteUI {
   private panelMode: "preview" | "actions" = "preview";
   private viewMode: "search" | "shortcuts" = "search";
   private selectedActionIndex = 0;
+  private actionQuery = "";
+  private actionInput: HTMLInputElement | null = null;
   private open = false;
   private searchToken = 0;
   private outsideClickHandler: (event: MouseEvent) => void;
@@ -207,6 +209,8 @@ export class PaletteUI {
     this.selectedIndex = 0;
     this.panelMode = "preview";
     this.selectedActionIndex = 0;
+    this.actionQuery = "";
+    this.actionInput = null;
     // Detect active collection for folder-scoped search
     this._activeCollection = null;
     try {
@@ -316,6 +320,43 @@ export class PaletteUI {
     if (!this.open) {
       return;
     }
+    if (this.panelMode === "actions") {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (this.actionQuery) {
+          this.actionQuery = "";
+          this.selectedActionIndex = 0;
+          this.renderPreview();
+          this.focusActionInput();
+        } else {
+          this.closeActionsPanel();
+        }
+        return;
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        this.moveActionSelection(1);
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        this.moveActionSelection(-1);
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void this.activateSelectedPanelAction();
+        return;
+      }
+      if (event.key === "Tab") {
+        event.preventDefault();
+        this.focusActionInput();
+        return;
+      }
+      if (event.target === this.actionInput) {
+        return;
+      }
+    }
     if (this.viewMode === "shortcuts") {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -371,6 +412,17 @@ export class PaletteUI {
     if (event.key === "Tab") {
       event.preventDefault();
       this.openActionsPanel();
+      return;
+    }
+    if (
+      event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey &&
+      this.displayMode === "search" &&
+      /^[1-9]$/.test(event.key)
+    ) {
+      event.preventDefault();
+      this.activateVisibleResult(Number(event.key) - 1);
       return;
     }
     if (event.key === "Escape") {
@@ -493,6 +545,8 @@ export class PaletteUI {
     await this.markBestAttachmentBadges(this.results);
     if (token !== this.searchToken) return;
     this.panelMode = "preview";
+    this.actionQuery = "";
+    this.actionInput = null;
     this.selectedActionIndex = 0;
     this.updateBodyMode();
     this.sectionHeader = parsedQuery.isCommandMode
@@ -542,7 +596,7 @@ export class PaletteUI {
   }
 
   private moveActionSelection(delta: number): void {
-    const actions = this.getPanelActions();
+    const actions = this.getFilteredPanelActions();
     if (!actions.length) {
       return;
     }
@@ -552,9 +606,14 @@ export class PaletteUI {
       Math.min(maxIndex, this.selectedActionIndex + delta),
     );
     this.renderPreview();
+    this.focusActionInput();
   }
 
   private openActionsPanel(): void {
+    if (this.panelMode === "actions") {
+      this.focusActionInput();
+      return;
+    }
     if (!this.results.length) {
       return;
     }
@@ -563,28 +622,51 @@ export class PaletteUI {
       return;
     }
     this.panelMode = "actions";
+    this.actionQuery = "";
     this.selectedActionIndex = Math.max(
       0,
       Math.min(actions.length - 1, this.selectedActionIndex),
     );
     this.updateBodyMode();
+    this.closeAutocomplete();
     this.renderPreview();
+    this.focusActionInput();
   }
 
   private closeActionsPanel(): void {
     this.panelMode = "preview";
+    this.actionQuery = "";
+    this.actionInput = null;
     this.selectedActionIndex = 0;
     this.updateBodyMode();
     this.renderPreview();
+    this.input.focus();
   }
 
   private async activateSelectedPanelAction(): Promise<void> {
-    const actions = this.getPanelActions();
+    const actions = this.getFilteredPanelActions();
     const action = actions[this.selectedActionIndex];
     if (!action) {
       return;
     }
     await action.run();
+  }
+
+  private activateVisibleResult(position: number): void {
+    const rows = Array.from(
+      this.list.querySelectorAll(".spotlight-result"),
+    ) as HTMLElement[];
+    const row = rows[position];
+    if (!row) {
+      return;
+    }
+    const resultIndex = Number(row.dataset.resultIndex);
+    if (!Number.isInteger(resultIndex)) {
+      return;
+    }
+    this.selectedIndex = resultIndex;
+    this.updateSelectionState();
+    void this.activateSelection("default");
   }
 
   private async activateSelection(intent: OpenIntent): Promise<void> {
@@ -715,6 +797,7 @@ export class PaletteUI {
       (r) => r.kind === "annotation",
     ).length;
     let lastSectionKind: string | null = null;
+    let visibleResultPosition = 0;
 
     this.results.forEach((result, index) => {
       // Insert section header when category changes
@@ -769,7 +852,15 @@ export class PaletteUI {
       const isOpenTab =
         (result.kind === "item" || result.kind === "attachment") &&
         openTabItemIDs.has(result.id);
-      this.appendResultBadges(row, result, isOpenTab);
+      this.appendResultBadges(
+        row,
+        result,
+        isOpenTab,
+        this.displayMode === "search" && visibleResultPosition < 9
+          ? visibleResultPosition + 1
+          : null,
+      );
+      visibleResultPosition += 1;
       if (result.kind === "history") {
         const deleteButton = this.createElement(
           "button",
@@ -939,16 +1030,22 @@ export class PaletteUI {
               "Uses the existing preview surface as a quick-reference page.",
           },
           {
-            label: "Open actions / preview",
-            shortcut: "Right Arrow",
+            label: "Open contextual actions",
+            shortcut: "Tab",
             detail:
-              "Inspect the selected result and switch into the action rail.",
+              "Inspect the selected result and search actions that apply to it.",
           },
           {
             label: "Back to results",
-            shortcut: "Left Arrow",
+            shortcut: "Escape",
             detail:
-              "Leave the preview action rail and return to the result list.",
+              "Clear an action filter first, then return to the result list.",
+          },
+          {
+            label: "Quick-open a visible result",
+            shortcut: "Ctrl+1-9",
+            detail:
+              "Open one of the first nine numbered search results directly.",
           },
           {
             label: "Open selected result",
@@ -1577,6 +1674,41 @@ export class PaletteUI {
   align-self: stretch;
 }
 
+.spotlight-action-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+  padding: 6px 8px;
+  border: 1px solid var(--quick-open-border);
+  border-radius: 7px;
+  background: var(--quick-open-input-bg);
+}
+
+.spotlight-action-search:focus-within {
+  border-color: var(--quick-open-border-focus);
+  box-shadow: 0 0 0 2px var(--quick-open-focus-ring);
+}
+
+.spotlight-action-search-prefix {
+  color: var(--quick-open-command-icon-text);
+  font-size: 13px;
+  font-weight: 700;
+  user-select: none;
+}
+
+.spotlight-action-search-input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--quick-open-text);
+  font: inherit;
+  font-size: 12px;
+}
+
 .spotlight-preview-detail {
   min-width: 0;
 }
@@ -1586,6 +1718,12 @@ export class PaletteUI {
   flex-direction: column;
   gap: 6px;
   margin-top: 0;
+}
+
+.spotlight-action-empty {
+  padding: 8px 9px;
+  color: var(--quick-open-muted);
+  font-size: 12px;
 }
 
 .spotlight-action-item {
@@ -1801,6 +1939,14 @@ export class PaletteUI {
   border-radius: 999px;
   padding: 3px 6px;
   flex: 0 0 auto;
+}
+
+.spotlight-quick-open-tag {
+  border: 1px solid var(--quick-open-border-soft);
+  background: var(--quick-open-input-bg);
+  color: var(--quick-open-subtext);
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .spotlight-tab-dot {
@@ -2044,7 +2190,7 @@ export class PaletteUI {
         this.viewMode === "shortcuts"
           ? "Shortcut Guide"
           : this.panelMode === "actions"
-            ? "Preview"
+            ? "Actions"
             : "";
     }
   }
@@ -2344,11 +2490,9 @@ export class PaletteUI {
       "spotlight-preview-detail",
     );
     if (this.panelMode === "actions") {
-      const actions = this.getPanelActions();
-      if (actions.length) {
-        shell.classList.add("is-actions-mode");
-        shell.appendChild(this.createActionsPanel(actions));
-      }
+      const actions = this.getFilteredPanelActions();
+      shell.classList.add("is-actions-mode");
+      shell.appendChild(this.createActionsPanel(actions));
     }
     if (result.kind === "history") {
       this.renderHistoryPreview(detailContainer, result as HistoryResult);
@@ -2484,7 +2628,35 @@ export class PaletteUI {
 
   private createActionsPanel(actions: PanelAction[]): HTMLElement {
     const panel = this.createElement("div", "spotlight-actions-panel");
+    const search = this.createElement("div", "spotlight-action-search");
+    const prefix = this.createElement("span", "spotlight-action-search-prefix");
+    prefix.textContent = ">";
+    prefix.setAttribute("aria-hidden", "true");
+    const input = this.createElement(
+      "input",
+      "spotlight-action-search-input",
+    ) as HTMLInputElement;
+    input.type = "text";
+    input.value = this.actionQuery;
+    input.placeholder = "Type an action...";
+    input.setAttribute("aria-label", "Filter actions");
+    input.addEventListener("input", () => {
+      this.actionQuery = input.value;
+      this.selectedActionIndex = 0;
+      this.renderPreview();
+      this.focusActionInput();
+    });
+    search.appendChild(prefix);
+    search.appendChild(input);
+    panel.appendChild(search);
+    this.actionInput = input;
+
     const list = this.createElement("div", "spotlight-action-list");
+    if (!actions.length) {
+      const empty = this.createElement("div", "spotlight-action-empty");
+      empty.textContent = "No matching actions";
+      list.appendChild(empty);
+    }
     actions.forEach((action, index) => {
       const button = this.createElement(
         "button",
@@ -2504,8 +2676,8 @@ export class PaletteUI {
       button.appendChild(title);
       button.addEventListener("mouseenter", () => {
         this.selectedActionIndex = index;
-        this.input.focus();
         this.renderPreview();
+        this.focusActionInput();
       });
       button.addEventListener("click", () => {
         void action.run();
@@ -2514,6 +2686,19 @@ export class PaletteUI {
     });
     panel.appendChild(list);
     return panel;
+  }
+
+  private focusActionInput(): void {
+    const input = this.previewPanel.querySelector(
+      ".spotlight-action-search-input",
+    ) as HTMLInputElement | null;
+    if (!input) {
+      return;
+    }
+    this.actionInput = input;
+    input.focus();
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
   }
 
   private createPreviewEmpty(message: string, detail: string): HTMLElement {
@@ -2834,6 +3019,21 @@ export class PaletteUI {
     }
 
     return actions;
+  }
+
+  private getFilteredPanelActions(): PanelAction[] {
+    const actions = this.getPanelActions();
+    const query = normalize(this.actionQuery);
+    if (!query) {
+      return actions;
+    }
+    const terms = query.split(/\s+/).filter(Boolean);
+    return actions.filter((action) => {
+      const searchable = normalize(
+        `${action.label} ${action.hint || ""} ${action.id}`,
+      );
+      return terms.every((term) => searchable.includes(term));
+    });
   }
 
   private createOpenAttachmentPanelAction(
@@ -3469,7 +3669,21 @@ export class PaletteUI {
     row: HTMLElement,
     result: QuickOpenResult | CommandResult | HistoryResult,
     isOpenTab: boolean,
+    quickOpenNumber: number | null,
   ): void {
+    if (quickOpenNumber !== null) {
+      const quickOpenTag = this.createElement(
+        "span",
+        "spotlight-tag spotlight-quick-open-tag",
+      );
+      quickOpenTag.textContent = `${Zotero.isMac ? "⌃" : "Ctrl+"}${quickOpenNumber}`;
+      quickOpenTag.title = `Open result ${quickOpenNumber}`;
+      quickOpenTag.setAttribute(
+        "aria-label",
+        `Control plus ${quickOpenNumber}: open result`,
+      );
+      row.appendChild(quickOpenTag);
+    }
     if (result.kind === "history") {
       const historyTag = this.createElement("span", "spotlight-tag");
       historyTag.textContent = "HISTORY";
