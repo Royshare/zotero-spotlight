@@ -370,6 +370,7 @@ export class PaletteUI {
     }
     if (event.key === "Tab") {
       event.preventDefault();
+      this.openActionsPanel();
       return;
     }
     if (event.key === "Escape") {
@@ -379,18 +380,6 @@ export class PaletteUI {
         return;
       }
       this.hide();
-      return;
-    }
-    if (event.key === "ArrowRight") {
-      event.preventDefault();
-      this.openActionsPanel();
-      return;
-    }
-    if (event.key === "ArrowLeft") {
-      if (this.panelMode === "actions") {
-        event.preventDefault();
-        this.closeActionsPanel();
-      }
       return;
     }
     if (event.key === "ArrowDown") {
