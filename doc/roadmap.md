@@ -54,8 +54,14 @@ Zotero Spotlight aims to become a universal command surface inside Zotero: avail
 - [x] Expose a command API so other Zotero plugins can register Spotlight actions
 - [x] Grow Spotlight into a shared command surface for the wider plugin ecosystem
 
+## Phase 10 — Synced Reading Queue
+
+- [x] Add or remove the active paper from a keyboard-first reading queue
+- [x] Filter queued papers with `:queue`, including combinations such as `:queue :pdf y:2026`
+- [x] Store queue state as a portable Zotero tag so it syncs without a separate service
+
 ## Future Directions
 
-- AI-assisted commands for summarization, note drafting, and paper comparison
+- Deeper reading-status and review workflows built on the Reading Queue
 - Better onboarding for filters and advanced search syntax
 - Deeper integrations with other Zotero plugins through the command API

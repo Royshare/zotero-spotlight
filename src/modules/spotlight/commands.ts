@@ -8,6 +8,11 @@ import {
   getParentForCommand,
   isOpenableAttachment,
 } from "./attachmentHelpers";
+import {
+  getReadingQueueTarget,
+  isInReadingQueue,
+  setReadingQueueState,
+} from "./readingQueue";
 
 export type CommandContext = "main" | "reader" | "note";
 
@@ -161,12 +166,13 @@ export class CommandRegistry {
   private getRunContext(win: Window): CommandRunContext {
     const mainWindow = Zotero.getMainWindow() || null;
     const pane = this.getPane(mainWindow);
+    const context = detectCommandContext(win);
     return {
       win,
       pane,
       mainWindow,
-      context: detectCommandContext(win),
-      activeItem: this.getActiveItem(win, pane),
+      context,
+      activeItem: this.getActiveItem(win, pane, context),
     };
   }
 
@@ -187,7 +193,17 @@ export class CommandRegistry {
   private getActiveItem(
     win: Window,
     pane: _ZoteroTypes.ZoteroPane | null,
+    context: CommandContext,
   ): Zotero.Item | null {
+    if (context !== "main") {
+      const tabItemID = getActiveTabItemID(win);
+      if (tabItemID) {
+        const tabItem = Zotero.Items.get(tabItemID) as Zotero.Item;
+        if (tabItem) {
+          return tabItem;
+        }
+      }
+    }
     const selectedItem = pane?.getSelectedItems?.()?.[0] as
       Zotero.Item | undefined;
     if (selectedItem) {
@@ -205,6 +221,45 @@ export class CommandRegistry {
 
   private createBuiltInCommands(): SpotlightCommand[] {
     return [
+      {
+        id: "add-to-reading-queue",
+        title: "Add to Reading Queue",
+        subtitle: "Save the current paper to your synced reading queue",
+        keywords: ["read later", "inbox", "queue", "save paper"],
+        contexts: ["main", "reader", "note"],
+        icon: "collection",
+        group: "Reading",
+        isAvailable: ({ activeItem }) => ({
+          enabled:
+            !!getReadingQueueTarget(activeItem) &&
+            !isInReadingQueue(activeItem),
+          reason: "Select a paper that is not already queued",
+        }),
+        run: async ({ activeItem }) => {
+          if (activeItem) {
+            await setReadingQueueState(activeItem, true);
+          }
+        },
+      },
+      {
+        id: "remove-from-reading-queue",
+        title: "Remove from Reading Queue",
+        subtitle: "Mark the current paper as handled",
+        keywords: ["read", "done", "complete", "queue"],
+        contexts: ["main", "reader", "note"],
+        icon: "collection",
+        group: "Reading",
+        isAvailable: ({ activeItem }) => ({
+          enabled:
+            !!getReadingQueueTarget(activeItem) && isInReadingQueue(activeItem),
+          reason: "Select a paper in the reading queue",
+        }),
+        run: async ({ activeItem }) => {
+          if (activeItem) {
+            await setReadingQueueState(activeItem, false);
+          }
+        },
+      },
       {
         id: "new-note",
         title: "New Note",

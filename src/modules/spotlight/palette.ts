@@ -27,6 +27,12 @@ import {
   isOpenableAttachmentType,
 } from "./attachmentHelpers";
 import { getPref } from "../../utils/prefs";
+import {
+  getReadingQueueTarget,
+  isInReadingQueue,
+  NORMALIZED_READING_QUEUE_TAG,
+  setReadingQueueState,
+} from "./readingQueue";
 
 const HTML_NS = "http://www.w3.org/1999/xhtml";
 
@@ -2926,6 +2932,10 @@ export class PaletteUI {
       if (copyAction) {
         actions.push(copyAction);
       }
+      const queueAction = this.createReadingQueuePanelAction(result);
+      if (queueAction) {
+        actions.push(queueAction);
+      }
       return actions.filter((action) =>
         action.id === "reveal-attachment"
           ? typeof result.attachmentID === "number"
@@ -3018,7 +3028,35 @@ export class PaletteUI {
       actions.push(copyAction);
     }
 
+    const queueAction = this.createReadingQueuePanelAction(result);
+    if (queueAction) {
+      actions.push(queueAction);
+    }
+
     return actions;
+  }
+
+  private createReadingQueuePanelAction(
+    result: QuickOpenResult,
+  ): PanelAction | null {
+    const item = Zotero.Items.get(result.id) as Zotero.Item | null;
+    const target = getReadingQueueTarget(item);
+    if (!item || !target) {
+      return null;
+    }
+    const queued = isInReadingQueue(target);
+    return {
+      id: queued ? "remove-from-reading-queue" : "add-to-reading-queue",
+      label: queued ? "Remove from Reading Queue" : "Add to Reading Queue",
+      icon: this.getActionCommandIcon("collection", queued ? "✓" : "+"),
+      hint: queued
+        ? "Mark this paper as handled"
+        : "Save this paper to the synced :queue view",
+      run: async () => {
+        await setReadingQueueState(target, !queued);
+        this.hide();
+      },
+    };
   }
 
   private getFilteredPanelActions(): PanelAction[] {
@@ -3712,6 +3750,11 @@ export class PaletteUI {
     if ((result as QuickOpenResult).libraryKind === "group") {
       badges.push("GROUP");
     }
+    if (
+      (result as QuickOpenResult).tags?.includes(NORMALIZED_READING_QUEUE_TAG)
+    ) {
+      badges.push("QUEUE");
+    }
 
     const isBestAttachment =
       result.kind === "attachment" &&
@@ -3841,6 +3884,11 @@ export class PaletteUI {
     const filterHints: Array<{ label: string; insert: string; title: string }> =
       [
         {
+          label: ":queue",
+          insert: ":queue ",
+          title: "Show papers saved to your Reading Queue",
+        },
+        {
           label: ":pdf",
           insert: ":pdf ",
           title: "Filter to PDF attachments only\nExample: :pdf Einstein",
@@ -3957,6 +4005,7 @@ export class PaletteUI {
       return;
     }
     const typeValues = [
+      "queue",
       "pdf",
       "epub",
       "snapshot",
