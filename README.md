@@ -53,11 +53,12 @@ Spotlight is different:
 - Trigger context-aware commands based on the current Zotero window and selected item.
 - Let other Zotero plugins register commands into Spotlight through the command API.
 
-### 3. Future Direction: AI Commands
+### 3. Synced Reading Queue
 
-- Spotlight is designed to grow toward intent-driven AI commands, closer to a Zotero-native Raycast-style command surface.
-- Likely future directions include paper summarization, annotation synthesis, note drafting, and paper-to-note comparison workflows.
-- This layer is planned, not shipped yet.
+- Add any paper to a deliberate read-later queue from its `Tab` action menu or with `> Add to Reading Queue`.
+- Type `:queue` to see queued papers, optionally combined with text, type, tag, or year filters.
+- Remove a paper from the queue when it is handled with `> Remove from Reading Queue`.
+- Queue state is stored as a normal `📚 Reading Queue` Zotero tag, so it syncs across devices and remains visible and portable outside Spotlight.
 
 ## Contributing
 

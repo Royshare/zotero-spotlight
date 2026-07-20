@@ -8,6 +8,7 @@ import {
   getItemYearSafe,
 } from "./itemMetadata";
 import { getPref } from "../../utils/prefs";
+import { NORMALIZED_READING_QUEUE_TAG } from "./readingQueue";
 
 export type QuickOpenResult = ItemResult | AttachmentResult | AnnotationResult;
 
@@ -83,6 +84,7 @@ type ParsedQuery = {
   filters: {
     types: Set<ResultType>;
     tags: string[];
+    readingQueue: boolean;
     yearMin?: number;
     yearMax?: number;
   };
@@ -511,7 +513,7 @@ async function buildAnnotationIndex(): Promise<IndexedEntry[]> {
   const parentItemCache = new Map<number, Zotero.Item | null>();
   const parentMetaCache = new Map<
     number,
-    { title: string; authors: string; year: number | null }
+    { title: string; authors: string; tags: string[]; year: number | null }
   >();
 
   try {
@@ -610,6 +612,7 @@ async function buildAnnotationIndex(): Promise<IndexedEntry[]> {
           parentMeta = {
             title: getItemTitleSafe(parentItem) || "",
             authors: getItemAuthorsSafe(parentItem) || "",
+            tags: getItemTags(parentItem),
             year: getItemYearNumber(parentItem),
           };
           parentMetaCache.set(parentItemID, parentMeta);
@@ -629,7 +632,7 @@ async function buildAnnotationIndex(): Promise<IndexedEntry[]> {
           title,
           subtitle,
           authors: parentMeta.authors,
-          tags: [],
+          tags: parentMeta.tags,
           abstractSnippet: annotationComment.slice(0, 120),
           year: parentMeta.year,
           libraryID: getItemLibraryID(attachmentItem, parentItem),
@@ -843,6 +846,7 @@ function parseStructuredQuery(rawQuery: string): ParsedQuery {
   const textTokens: string[] = [];
   const types = new Set<ResultType>();
   const tags: string[] = [];
+  let readingQueue = false;
   let yearMin: number | undefined;
   let yearMax: number | undefined;
 
@@ -864,6 +868,10 @@ function parseStructuredQuery(rawQuery: string): ParsedQuery {
       continue;
     }
     if (token.startsWith(":") && token.length > 1) {
+      if (lower === ":queue") {
+        readingQueue = true;
+        continue;
+      }
       const parsedTypes = parseTypeFilter(token.slice(1));
       parsedTypes.forEach((type) => types.add(type));
       continue;
@@ -898,6 +906,7 @@ function parseStructuredQuery(rawQuery: string): ParsedQuery {
     filters: {
       types,
       tags,
+      readingQueue,
       yearMin,
       yearMax,
     },
@@ -1060,6 +1069,12 @@ function matchesFilters(
         return false;
       }
     }
+  }
+  if (
+    filters.readingQueue &&
+    !entry.tags.includes(NORMALIZED_READING_QUEUE_TAG)
+  ) {
+    return false;
   }
   if (typeof filters.yearMin === "number") {
     if (entry.year === null || entry.year < filters.yearMin) {
