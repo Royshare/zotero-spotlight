@@ -309,7 +309,10 @@ export class SearchService {
     const mainPane = Zotero.getMainWindow()?.ZoteroPane;
     const activePane =
       localPane || mainPane || (Zotero.getActiveZoteroPane?.() as any);
-    const selectedLibraryID = activePane?.getSelectedLibraryID?.();
+    const selectedLibraryID =
+      typeof activePane?.getSelectedLibraryIDs === "function"
+        ? activePane.getSelectedLibraryIDs()[0]
+        : activePane?.getSelectedLibraryID?.();
     return typeof selectedLibraryID === "number" ? selectedLibraryID : null;
   }
 

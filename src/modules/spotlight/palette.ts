@@ -224,7 +224,10 @@ export class PaletteUI {
         (this.win as any).ZoteroPane ||
         Zotero.getMainWindow()?.ZoteroPane ||
         (Zotero.getActiveZoteroPane?.() as any);
-      const col = pane?.getSelectedCollection?.();
+      const col =
+        typeof pane?.getSelectedCollections === "function"
+          ? pane.getSelectedCollections()[0]
+          : pane.getSelectedCollection();
       if (col) {
         this._activeCollection = col;
         const label = this.root.querySelector(
