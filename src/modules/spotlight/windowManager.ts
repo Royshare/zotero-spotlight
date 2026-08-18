@@ -3,6 +3,12 @@ import { PaletteUI } from "./palette";
 import { SearchService } from "./search";
 import { isWindowAlive } from "../../utils/window";
 import { getPref } from "../../utils/prefs";
+import {
+  getShortcutFromEvent,
+  resolveShortcutConfig,
+  resolveSpotlightShortcut,
+  type SpotlightLaunchMode,
+} from "./shortcuts";
 
 type WindowListener = {
   onOpenWindow: (xulWindow: unknown) => void;
@@ -47,12 +53,13 @@ export class WindowManager {
         palette.toggleShortcutGuide();
         return;
       }
-      if (!isToggleEvent(event)) {
+      const shortcutAction = getShortcutAction(event);
+      if (!shortcutAction) {
         return;
       }
       event.preventDefault();
       event.stopPropagation();
-      palette.toggle();
+      palette.toggle(shortcutAction);
     };
     win.addEventListener("keydown", handler, true);
     win.addEventListener(
@@ -161,29 +168,18 @@ function isSupportedWindow(win: Window): boolean {
   return false;
 }
 
-function isToggleEvent(event: KeyboardEvent): boolean {
-  if (event.altKey) {
-    return false;
+function getShortcutAction(event: KeyboardEvent): SpotlightLaunchMode | null {
+  const pressedShortcut = getShortcutFromEvent(event, Zotero.isMac);
+  if (!pressedShortcut) {
+    return null;
   }
-  const key = event.key?.toLowerCase();
-  const code = event.code;
-  const isMac = Zotero.isMac;
-  const modifier = isMac ? event.metaKey : event.ctrlKey;
-  if (!modifier) {
-    return false;
-  }
-  const isMatch = key === "p" || code === "KeyP";
-  if (!isMatch) {
-    return false;
-  }
-  const shortcutMode = (getPref("shortcutMode") || "primary") as string;
-  if (shortcutMode === "fallback") {
-    return event.shiftKey;
-  }
-  if (shortcutMode === "primary") {
-    return !event.shiftKey;
-  }
-  return true;
+  const config = resolveShortcutConfig(
+    getPref("searchShortcut"),
+    getPref("commandShortcut"),
+    getPref("shortcutMode"),
+    getPref("commandShortcutEnabled"),
+  );
+  return resolveSpotlightShortcut(pressedShortcut, config);
 }
 
 function isShortcutGuideEvent(event: KeyboardEvent): boolean {
