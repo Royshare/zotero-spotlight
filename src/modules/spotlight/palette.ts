@@ -227,7 +227,7 @@ export class PaletteUI {
       const col =
         typeof pane?.getSelectedCollections === "function"
           ? pane.getSelectedCollections()[0]
-          : pane.getSelectedCollection();
+          : pane?.getSelectedCollection?.();
       if (col) {
         this._activeCollection = col;
         const label = this.root.querySelector(
@@ -243,6 +243,7 @@ export class PaletteUI {
       }
     } catch (_) {
       if (this.collectionBar) this.collectionBar.style.display = "none";
+      if (this.collectionCheckbox) this.collectionCheckbox.checked = false;
     }
     this.renderResults();
     void this.updateResults(shouldRestore ? this._savedQuery : "").then(() => {
