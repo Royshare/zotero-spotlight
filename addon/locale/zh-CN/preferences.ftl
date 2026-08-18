@@ -1,12 +1,24 @@
 pref-shortcut-section = 快捷键
-pref-shortcut-primary = { PLATFORM() ->
+pref-shortcut-search-label = 打开 Spotlight 搜索
+pref-shortcut-command-label = 打开命令模式
+pref-shortcut-mod-p = { PLATFORM() ->
         [macos] ⌘+P
        *[other] Ctrl+P
     }
-pref-shortcut-fallback = { PLATFORM() ->
+pref-shortcut-mod-shift-p = { PLATFORM() ->
         [macos] ⌘+⇧+P
        *[other] Ctrl+Shift+P
     }
+pref-shortcut-mod-k = { PLATFORM() ->
+        [macos] ⌘+K
+       *[other] Ctrl+K
+    }
+pref-shortcut-mod-o = { PLATFORM() ->
+        [macos] ⌘+O
+       *[other] Ctrl+O
+    }
+pref-shortcut-off = 关闭
+pref-shortcut-conflict-note = 选择已在使用的快捷键时，两个操作的快捷键会自动交换。
 pref-results-section = 结果限制
 pref-results-limit = 结果数量上限
 

@@ -28,6 +28,11 @@ import {
 } from "./attachmentHelpers";
 import { getPref } from "../../utils/prefs";
 import {
+  formatSpotlightShortcut,
+  resolveShortcutConfig,
+  type SpotlightLaunchMode,
+} from "./shortcuts";
+import {
   getReadingQueueTarget,
   isInReadingQueue,
   NORMALIZED_READING_QUEUE_TAG,
@@ -86,6 +91,7 @@ export class PaletteUI {
   private selectedIndex = 0;
   private panelMode: "preview" | "actions" = "preview";
   private viewMode: "search" | "shortcuts" = "search";
+  private launchMode: "search" | "command" = "search";
   private selectedActionIndex = 0;
   private actionQuery = "";
   private actionInput: HTMLInputElement | null = null;
@@ -173,11 +179,21 @@ export class PaletteUI {
     this.hide();
   }
 
-  toggle(): void {
-    if (this.open) {
+  toggle(mode: "search" | "command" = "search"): void {
+    const isCurrentlyCommand =
+      this.viewMode === "search" &&
+      this.input.value.trimStart().startsWith(">");
+    const isRequestedModeOpen =
+      this.open &&
+      this.viewMode === "search" &&
+      isCurrentlyCommand === (mode === "command");
+    if (isRequestedModeOpen) {
       this.hide();
     } else {
-      this.show();
+      if (this.open && this.viewMode === "search" && !isCurrentlyCommand) {
+        this.saveSearchState();
+      }
+      this.show(mode);
     }
   }
 
@@ -189,8 +205,9 @@ export class PaletteUI {
     this.showShortcutGuide();
   }
 
-  show(): void {
+  show(mode: "search" | "command" = "search"): void {
     this.viewMode = "search";
+    this.launchMode = mode;
     this.input.placeholder = "Spotlight...";
     this.open = true;
     this.root.classList.remove("is-animate");
@@ -207,8 +224,11 @@ export class PaletteUI {
       this.root.style.width = getWindowWidth() + "px";
     }
     const shouldRestore =
-      !!(getPref as any)("restoreSearch") && this._savedQuery !== "";
-    this.input.value = shouldRestore ? this._savedQuery : "";
+      mode === "search" &&
+      !!(getPref as any)("restoreSearch") &&
+      this._savedQuery !== "";
+    this.input.value =
+      mode === "command" ? "> " : shouldRestore ? this._savedQuery : "";
     this.updateFilterHintBar(this.input.value);
     this.closeAutocomplete();
     this.results = [];
@@ -246,7 +266,7 @@ export class PaletteUI {
       if (this.collectionCheckbox) this.collectionCheckbox.checked = false;
     }
     this.renderResults();
-    void this.updateResults(shouldRestore ? this._savedQuery : "").then(() => {
+    void this.updateResults(this.input.value).then(() => {
       if (shouldRestore) {
         this.list.scrollTop = this._savedScrollTop;
       }
@@ -254,6 +274,11 @@ export class PaletteUI {
     this.input.focus();
     if (shouldRestore) {
       this.input.select();
+    } else {
+      this.input.setSelectionRange(
+        this.input.value.length,
+        this.input.value.length,
+      );
     }
     this.updateBodyMode();
   }
@@ -287,15 +312,19 @@ export class PaletteUI {
 
   hide(): void {
     this.open = false;
-    if (this.viewMode !== "shortcuts") {
-      this._savedQuery = this.input.value;
+    if (this.viewMode !== "shortcuts" && this.launchMode === "search") {
+      this.saveSearchState();
     }
-    this._savedScrollTop = this.list.scrollTop;
     this.viewMode = "search";
     this.input.placeholder = "Spotlight...";
     this.root.style.display = "none";
     this.closeAutocomplete();
     this.updateBodyMode();
+  }
+
+  private saveSearchState(): void {
+    this._savedQuery = this.input.value;
+    this._savedScrollTop = this.list.scrollTop;
   }
 
   destroy(): void {
@@ -475,6 +504,7 @@ export class PaletteUI {
   private async updateResults(query: string): Promise<void> {
     const token = (this.searchToken += 1);
     const parsedQuery = this.parseQuery(query);
+    this.updateCollectionBarVisibility(parsedQuery.isCommandMode);
     this.currentQuery = parsedQuery.query;
     const resultsLimit = this.getResultsLimit();
     // >tabs command
@@ -1028,11 +1058,21 @@ export class PaletteUI {
         title: "Spotlight",
         entries: [
           {
-            label: "Open Spotlight",
-            shortcut: this.getSpotlightToggleShortcutLabel(),
+            label: "Open Spotlight search",
+            shortcut: this.getSpotlightShortcutLabel("search"),
             detail:
               "Open the library-wide switcher from the main window, reader, or notes.",
           },
+          ...(this.getConfiguredShortcuts().command !== "off"
+            ? [
+                {
+                  label: "Open Spotlight commands",
+                  shortcut: this.getSpotlightShortcutLabel("command"),
+                  detail:
+                    "Open Spotlight with `>` already entered and ready to filter commands.",
+                },
+              ]
+            : []),
           {
             label: "Open this shortcuts page",
             shortcut: `${getModifierKeyLabel()}+/`,
@@ -1335,13 +1375,20 @@ export class PaletteUI {
     return index >= 0 ? index : order.length + normalized.charCodeAt(0);
   }
 
-  private getSpotlightToggleShortcutLabel(): string {
-    const modifier = getModifierKeyLabel();
-    const shortcutMode = (getPref("shortcutMode") || "primary") as string;
-    if (shortcutMode === "fallback") {
-      return `${modifier}+Shift+P`;
-    }
-    return `${modifier}+P`;
+  private getConfiguredShortcuts() {
+    return resolveShortcutConfig(
+      getPref("searchShortcut"),
+      getPref("commandShortcut"),
+      getPref("shortcutMode"),
+      getPref("commandShortcutEnabled"),
+    );
+  }
+
+  private getSpotlightShortcutLabel(mode: SpotlightLaunchMode): string {
+    return formatSpotlightShortcut(
+      this.getConfiguredShortcuts()[mode],
+      getModifierKeyLabel(),
+    );
   }
 
   private createRoot(): HTMLDivElement {
@@ -3971,6 +4018,12 @@ export class PaletteUI {
       (enabled === undefined || enabled === null ? true : !!enabled) &&
       query.trim() === "";
     this.filterHintBar.style.display = show ? "flex" : "none";
+  }
+
+  private updateCollectionBarVisibility(isCommandMode: boolean): void {
+    if (!this.collectionBar) return;
+    const show = !!this._activeCollection && !isCommandMode;
+    this.collectionBar.style.display = show ? "flex" : "none";
   }
 
   // ── Colon-triggered autocomplete (Option A) ────────────────────────────────

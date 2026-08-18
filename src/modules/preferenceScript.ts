@@ -1,5 +1,9 @@
 import { config } from "../../package.json";
 import { getPref, setPref } from "../utils/prefs";
+import {
+  assignSpotlightShortcut,
+  resolveShortcutConfig,
+} from "./spotlight/shortcuts";
 
 export async function registerPrefsScripts(_window: Window) {
   if (!addon.data.prefs) {
@@ -20,12 +24,16 @@ function syncPrefUI() {
     return;
   }
   const doc = addon.data.prefs.window.document;
-  const shortcut = doc.querySelector(
-    `#zotero-prefpane-${config.addonRef}-shortcut`,
-  );
-  if (shortcut) {
-    const value = normalizeShortcutMode(getPref("shortcutMode"));
-    setShortcutElementValue(shortcut, value);
+  const searchShortcutSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-search-shortcut`,
+  ) as HTMLSelectElement | null;
+  const commandShortcutSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-command-shortcut`,
+  ) as HTMLSelectElement | null;
+  if (searchShortcutSelect && commandShortcutSelect) {
+    const shortcuts = getConfiguredShortcuts();
+    searchShortcutSelect.value = shortcuts.search;
+    commandShortcutSelect.value = shortcuts.command;
   }
   const limitInput = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-results-limit`,
@@ -78,10 +86,13 @@ function bindPrefEvents() {
     return;
   }
   const doc = addon.data.prefs.window.document;
-  const shortcut = doc.querySelector(
-    `#zotero-prefpane-${config.addonRef}-shortcut`,
-  );
-  bindShortcutEvents(shortcut);
+  const searchShortcutSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-search-shortcut`,
+  ) as HTMLSelectElement | null;
+  const commandShortcutSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-command-shortcut`,
+  ) as HTMLSelectElement | null;
+  bindShortcutEvents(searchShortcutSelect, commandShortcutSelect);
   const limitInput = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-results-limit`,
   ) as HTMLInputElement | null;
@@ -128,6 +139,10 @@ function bindPrefEvents() {
     `#zotero-prefpane-${config.addonRef}-reset-defaults`,
   ) as HTMLButtonElement | null;
   resetButton?.addEventListener("click", () => {
+    setPref("shortcutMode", "primary");
+    setPref("commandShortcutEnabled", true);
+    setPref("searchShortcut", "mod-p");
+    setPref("commandShortcut", "mod-shift-p");
     setPref("resultsLimit", 20);
     (setPref as any)("windowHeight", 400);
     (setPref as any)("windowWidth", 560);
@@ -153,54 +168,41 @@ function clampWindowWidth(value: number): number {
   return Math.min(1200, Math.max(300, value));
 }
 
-type ShortcutMode = "primary" | "fallback";
+function getConfiguredShortcuts() {
+  return resolveShortcutConfig(
+    getPref("searchShortcut"),
+    getPref("commandShortcut"),
+    getPref("shortcutMode"),
+    getPref("commandShortcutEnabled"),
+  );
+}
 
-function bindShortcutEvents(shortcut: Element | null) {
-  if (!shortcut) {
+function bindShortcutEvents(
+  searchSelect: HTMLSelectElement | null,
+  commandSelect: HTMLSelectElement | null,
+) {
+  if (!searchSelect || !commandSelect) {
     return;
   }
-  const updateShortcutPref: EventListener = () => {
-    const value = getShortcutElementValue(shortcut);
-    setPref("shortcutMode", value);
+  let configured = getConfiguredShortcuts();
+
+  const applyShortcuts = (next: typeof configured) => {
+    configured = next;
+    searchSelect.value = next.search;
+    commandSelect.value = next.command;
+    setPref("searchShortcut", next.search);
+    setPref("commandShortcut", next.command);
   };
-  if (isXulRadioGroup(shortcut)) {
-    shortcut.addEventListener("select", updateShortcutPref);
-    shortcut.addEventListener("command", updateShortcutPref);
-    return;
-  }
-  shortcut.querySelectorAll('input[type="radio"]').forEach((node: Element) => {
-    const input = node as HTMLInputElement;
-    input.addEventListener("change", updateShortcutPref);
+
+  searchSelect.addEventListener("change", () => {
+    applyShortcuts(
+      assignSpotlightShortcut(configured, "search", searchSelect.value),
+    );
   });
-}
 
-function normalizeShortcutMode(value: unknown): ShortcutMode {
-  return value === "fallback" ? "fallback" : "primary";
-}
-
-function isXulRadioGroup(
-  element: Element | null,
-): element is XUL.RadioGroup & Element {
-  return element?.localName === "radiogroup";
-}
-
-function getShortcutElementValue(shortcut: Element): ShortcutMode {
-  if (isXulRadioGroup(shortcut)) {
-    return normalizeShortcutMode(shortcut.value);
-  }
-  const selected = shortcut.querySelector(
-    'input[type="radio"]:checked',
-  ) as HTMLInputElement | null;
-  return normalizeShortcutMode(selected?.value);
-}
-
-function setShortcutElementValue(shortcut: Element, value: ShortcutMode): void {
-  if (isXulRadioGroup(shortcut)) {
-    shortcut.value = value;
-    return;
-  }
-  shortcut.querySelectorAll('input[type="radio"]').forEach((node: Element) => {
-    const input = node as HTMLInputElement;
-    input.checked = input.value === value;
+  commandSelect.addEventListener("change", () => {
+    applyShortcuts(
+      assignSpotlightShortcut(configured, "command", commandSelect.value),
+    );
   });
 }

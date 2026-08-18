@@ -28,7 +28,8 @@ Spotlight is different:
 
 ## Features
 
-- Open Spotlight with one shortcut: `Cmd+P` on macOS, `Ctrl+P` on Windows/Linux.
+- Open Spotlight search with `Cmd+P` on macOS or `Ctrl+P` on Windows/Linux.
+- Open command mode directly with `Cmd+Shift+P` on macOS or `Ctrl+Shift+P` on Windows/Linux; configure search and command mode independently with `P`, `Shift+P`, `K`, or `O` presets in Preferences.
 - Open a full keyboard shortcut reference with `Cmd+/` on macOS, `Ctrl+/` on Windows/Linux.
 - Works in the main Zotero window, reader, and note editor.
 

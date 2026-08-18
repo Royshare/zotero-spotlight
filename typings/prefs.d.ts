@@ -8,6 +8,9 @@ declare namespace _ZoteroTypes {
   interface Prefs {
     PluginPrefsMap: {
       "shortcutMode": string;
+      "commandShortcutEnabled": boolean;
+      "searchShortcut": string;
+      "commandShortcut": string;
       "resultsLimit": number;
     };
   }

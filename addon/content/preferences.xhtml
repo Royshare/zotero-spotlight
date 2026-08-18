@@ -1,23 +1,10 @@
 <linkset>
   <html:link rel="localization" href="__addonRef__-preferences.ftl" />
   <html:style>
-    .zotero-spotlight-section { gap: 16px; } .zotero-spotlight-radio-group {
-    gap: 8px; } .zotero-spotlight-radio-option { display: flex; align-items:
-    center; gap: 8px; color: var(--in-content-text-color); font: menu; }
-    .zotero-spotlight-radio-input { appearance: none; width: 16px; height: 16px;
-    border: 1px solid var(--in-content-border-color, #5b5b5b); border-radius:
-    50%; display: inline-flex; align-items: center; justify-content: center;
-    background-color: var(--in-content-box-background, transparent); transition:
-    border-color 100ms ease-in-out, background-color 100ms ease-in-out; }
-    .zotero-spotlight-radio-input::after { content: ""; width: 8px; height: 8px;
-    border-radius: 50%; background-color: transparent; transition:
-    background-color 100ms ease-in-out; }
-    .zotero-spotlight-radio-input:focus-visible { outline: 2px solid
-    var(--in-content-focus-outline-color, #00adff); outline-offset: 2px; }
-    .zotero-spotlight-radio-input:checked { border-color:
-    var(--in-content-primary-button-background, #0078d4); }
-    .zotero-spotlight-radio-input:checked::after { background-color:
-    var(--in-content-primary-button-background, #0078d4); }
+    .zotero-spotlight-section { gap: 16px; } .zotero-spotlight-shortcut-grid {
+    display: grid; grid-template-columns: max-content minmax(150px, 220px); gap:
+    10px 16px; align-items: center; color: var(--in-content-text-color); font:
+    menu; } .zotero-spotlight-shortcut-select { width: 100%; }
     .zotero-spotlight-section-label { font-weight: bold; margin-bottom: 4px; }
   </html:style>
 </linkset>
@@ -30,30 +17,60 @@
       class="zotero-spotlight-section-label"
       data-l10n-id="pref-shortcut-section"
     ></label>
-    <vbox
-      id="zotero-prefpane-__addonRef__-shortcut"
-      class="zotero-spotlight-radio-group"
-      orient="horizontal"
-    >
-      <html:label class="zotero-spotlight-radio-option">
-        <html:input
-          class="zotero-spotlight-radio-input"
-          type="radio"
-          name="zotero-prefpane-__addonRef__-shortcut-choice"
-          value="primary"
-        />
-        <html:span data-l10n-id="pref-shortcut-primary"></html:span>
-      </html:label>
-      <html:label class="zotero-spotlight-radio-option">
-        <html:input
-          class="zotero-spotlight-radio-input"
-          type="radio"
-          name="zotero-prefpane-__addonRef__-shortcut-choice"
-          value="fallback"
-        />
-        <html:span data-l10n-id="pref-shortcut-fallback"></html:span>
-      </html:label>
-    </vbox>
+    <html:div class="zotero-spotlight-shortcut-grid">
+      <html:label
+        for="zotero-prefpane-__addonRef__-search-shortcut"
+        data-l10n-id="pref-shortcut-search-label"
+      ></html:label>
+      <html:select
+        id="zotero-prefpane-__addonRef__-search-shortcut"
+        class="zotero-spotlight-shortcut-select"
+      >
+        <html:option
+          value="mod-p"
+          data-l10n-id="pref-shortcut-mod-p"
+        ></html:option>
+        <html:option
+          value="mod-shift-p"
+          data-l10n-id="pref-shortcut-mod-shift-p"
+        ></html:option>
+        <html:option
+          value="mod-k"
+          data-l10n-id="pref-shortcut-mod-k"
+        ></html:option>
+        <html:option
+          value="mod-o"
+          data-l10n-id="pref-shortcut-mod-o"
+        ></html:option>
+      </html:select>
+      <html:label
+        for="zotero-prefpane-__addonRef__-command-shortcut"
+        data-l10n-id="pref-shortcut-command-label"
+      ></html:label>
+      <html:select
+        id="zotero-prefpane-__addonRef__-command-shortcut"
+        class="zotero-spotlight-shortcut-select"
+      >
+        <html:option
+          value="mod-p"
+          data-l10n-id="pref-shortcut-mod-p"
+        ></html:option>
+        <html:option
+          value="mod-shift-p"
+          data-l10n-id="pref-shortcut-mod-shift-p"
+        ></html:option>
+        <html:option
+          value="mod-k"
+          data-l10n-id="pref-shortcut-mod-k"
+        ></html:option>
+        <html:option
+          value="mod-o"
+          data-l10n-id="pref-shortcut-mod-o"
+        ></html:option>
+        <html:option value="off" data-l10n-id="pref-shortcut-off"></html:option>
+      </html:select>
+    </html:div>
+    <description data-l10n-id="pref-shortcut-conflict-note"></description>
   </vbox>
   <vbox>
     <label
