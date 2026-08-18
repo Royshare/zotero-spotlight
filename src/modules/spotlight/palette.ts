@@ -224,7 +224,10 @@ export class PaletteUI {
         (this.win as any).ZoteroPane ||
         Zotero.getMainWindow()?.ZoteroPane ||
         (Zotero.getActiveZoteroPane?.() as any);
-      const col = pane?.getSelectedCollection?.();
+      const col =
+        typeof pane?.getSelectedCollections === "function"
+          ? pane.getSelectedCollections()[0]
+          : pane?.getSelectedCollection?.();
       if (col) {
         this._activeCollection = col;
         const label = this.root.querySelector(
@@ -240,6 +243,7 @@ export class PaletteUI {
       }
     } catch (_) {
       if (this.collectionBar) this.collectionBar.style.display = "none";
+      if (this.collectionCheckbox) this.collectionCheckbox.checked = false;
     }
     this.renderResults();
     void this.updateResults(shouldRestore ? this._savedQuery : "").then(() => {
