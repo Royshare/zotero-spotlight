@@ -38,6 +38,7 @@ Spotlight is different:
 - Search across your library with fuzzy matching instead of being limited to the current collection.
 - Switch between items, notes, PDFs, annotations, and open tabs from one place.
 - Narrow results with filter sigils: `:pdf`, `:note`, `#tag`, `y:2024` — combinable, e.g. `:pdf y:2020-2024 neural`.
+- Type `:col query` to search only collections and group libraries, then press Enter to switch to that location.
 - Search annotations directly with `@query`, or search indexed PDF text as an exact phrase with `=phrase`.
 - A filter hint bar below the search input shows all available filters as clickable badges; typing `:` or `#` triggers inline autocomplete.
 - Use richer result rows and press `Right Arrow` or right-click a result to open preview details and contextual actions.
