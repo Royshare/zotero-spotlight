@@ -26,41 +26,93 @@ Spotlight is different:
 
 > **Zotero Spotlight started as a personal tool. I wanted a fast, keyboard-first way to jump between papers anywhere inside Zotero, but couldn’t find an existing plugin that offered this experience. I built it for my own workflow and decided to open-source it so others can use it, adapt it, or help improve it.**
 
+## Quick Start
+
+Spotlight works from the main Zotero window, the reader, and the note editor.
+The default shortcuts are:
+
+| Action                  | macOS         | Windows / Linux |
+| ----------------------- | ------------- | --------------- |
+| Open library search     | `Cmd+P`       | `Ctrl+P`        |
+| Open command mode       | `Cmd+Shift+P` | `Ctrl+Shift+P`  |
+| Open the shortcut guide | `Cmd+/`       | `Ctrl+/`        |
+
+Inside Spotlight:
+
+- Use `Up` / `Down` to select a result and `Enter` to open it.
+- Press `Tab` to open and search the selected result's contextual actions.
+- Press `Ctrl+1` through `Ctrl+9` to open a numbered result immediately.
+- Press `Cmd+Enter` on macOS or `Ctrl+Enter` elsewhere to reveal an item result in the Zotero library.
+- Press `Shift+Enter` for an item's alternate open behavior, such as opening a reader or note in a separate window.
+- Press `Escape` to return from actions or close Spotlight.
+
+Search and command shortcuts can be assigned independently in Preferences to
+`Cmd/Ctrl+P`, `Cmd/Ctrl+Shift+P`, `Cmd/Ctrl+K`, or `Cmd/Ctrl+O`. Command mode can
+also be disabled.
+
 ## Features
 
-- Open Spotlight search with `Cmd+P` on macOS or `Ctrl+P` on Windows/Linux.
-- Open command mode directly with `Cmd+Shift+P` on macOS or `Ctrl+Shift+P` on Windows/Linux; configure search and command mode independently with `P`, `Shift+P`, `K`, or `O` presets in Preferences.
-- Open a full keyboard shortcut reference with `Cmd+/` on macOS, `Ctrl+/` on Windows/Linux.
-- Works in the main Zotero window, reader, and note editor.
+### 1. Library-Wide Search and Navigation
 
-### 1. Search, Switch, Filter
+- Fuzzy-search items, notes, PDFs, EPUBs, snapshots, and annotations across personal and group libraries.
+- Optionally restrict a normal search to the currently selected collection, including its subcollections.
+- Type `:col query` to enter a separate collection-only mode, search collection paths and group libraries, and switch the Zotero collection tree with `Enter`.
+- Use `>tabs` to search and switch across open Zotero tabs.
+- Start from a smart recent view containing recent searches, open readers, recently closed readers, and recently activated items.
+- Rank results using text relevance, active-library scope, recency, and usage frequency.
+- Identify result types, group-library content, open tabs, reading-queue items, and the best attachment from compact badges.
 
-- Search across your library with fuzzy matching instead of being limited to the current collection.
-- Switch between items, notes, PDFs, annotations, and open tabs from one place.
-- Narrow results with filter sigils: `:pdf`, `:note`, `#tag`, `y:2024` — combinable, e.g. `:pdf y:2020-2024 neural`.
-- Type `:col query` to search only collections and group libraries, then press Enter to switch to that location.
-- Search annotations directly with `@query`, or search indexed PDF text as an exact phrase with `=phrase`.
-- A filter hint bar below the search input shows all available filters as clickable badges; typing `:` or `#` triggers inline autocomplete.
-- Use richer result rows and press `Right Arrow` or right-click a result to open preview details and contextual actions.
-- Jump annotation results directly to the matching location in the PDF, with improved annotation-focused search relevance.
-- Get ranking boosts from recency, frequency, library scope, and recent-search history per window.
-- The primary/best attachment for each item is highlighted with a green badge in the result list.
+### 2. Search Syntax
 
-### 2. Commands and Workflows
+| Syntax                                                        | Purpose                                     | Example                   |
+| ------------------------------------------------------------- | ------------------------------------------- | ------------------------- |
+| Plain text                                                    | Fuzzy-search item metadata                  | `attention transformer`   |
+| `:pdf`, `:epub`, `:snapshot`, `:note`, `:item`, `:annotation` | Restrict result type                        | `:pdf neural`             |
+| `#tag`                                                        | Require a Zotero tag                        | `#methods regression`     |
+| `y:`                                                          | Match an exact year, range, or comparison   | `y:2020-2024`, `y:>=2022` |
+| `@query`                                                      | Search annotations only                     | `@limitations`            |
+| `=phrase`                                                     | Search indexed PDF text for an exact phrase | `=attention mechanism`    |
+| `:queue`                                                      | Show papers in the synced Reading Queue     | `:queue :pdf y:>=2024`    |
+| `:col query`                                                  | Search collections and group libraries only | `:col machine learning`   |
+| `>query`                                                      | Search commands                             | `>copy citation`          |
+| `>tabs`                                                       | List open Zotero tabs                       | `>tabs`                   |
 
-- Use `>` to enter command mode for built-in actions like `New Note`, `Copy Citation`, `Copy Bibliography`, `Open Collection`, and `Show PDF/EPUB/Snapshot in Finder/Explorer`.
-- Run `>add note + open best attachment` to create a note and immediately open the item's primary PDF, EPUB, or Snapshot in one step.
-- Run reusable workflows like `>literature note` and `>extract highlights` for common research tasks.
-- Use `>tabs` to search and switch across currently open Zotero tabs.
-- Trigger context-aware commands based on the current Zotero window and selected item.
-- Let other Zotero plugins register commands into Spotlight through the command API.
+Normal item filters can be combined. A clickable hint bar exposes the available
+syntax, while inline autocomplete completes colon and year filters. Collection
+mode stays separate so collection destinations are never mixed into paper
+results.
 
-### 3. Synced Reading Queue
+### 3. Preview and Contextual Actions
 
-- Add any paper to a deliberate read-later queue from its `Tab` action menu or with `> Add to Reading Queue`.
-- Type `:queue` to see queued papers, optionally combined with text, type, tag, or year filters.
-- Remove a paper from the queue when it is handled with `> Remove from Reading Queue`.
-- Queue state is stored as a normal `📚 Reading Queue` Zotero tag, so it syncs across devices and remains visible and portable outside Spotlight.
+- Inspect authors, year, tags, abstract snippets, attachment details, note content, and annotation context before opening a result.
+- Jump annotation matches directly to their location in the PDF.
+- Press `Tab` or right-click to open a searchable action panel for the selected result.
+- Open the best attachment or parent item, reveal an item in the library, or show an attachment in Finder, Explorer, or the system file manager.
+- Copy citations, bibliographies, note text, or annotation content without leaving Spotlight.
+- Open supported attachments and notes in the current tab or a separate window.
+
+### 4. Commands and Workflows
+
+- Use `>` for context-aware commands such as `New Note`, `Copy Citation`, `Copy Bibliography`, `Open Collection`, and `Show Attachment in Finder/Explorer`.
+- Run `>add note + open best attachment` to create a child note and immediately open the paper's preferred PDF, EPUB, or snapshot.
+- Use `>literature note` to create a structured literature note or `>extract highlights` to create a note from PDF, EPUB, or snapshot annotations.
+- Run commands from the main window, reader, or note editor; availability adapts to the active item and window.
+- Let other Zotero plugins register and unregister commands through Spotlight's command API.
+
+### 5. Synced Reading Queue
+
+- Add a paper from its `Tab` action panel or with `> Add to Reading Queue`.
+- Find queued papers with `:queue`, combined with text, type, tag, or year filters when needed.
+- Mark a paper as handled with `> Remove from Reading Queue` or the corresponding contextual action.
+- Queue state is stored as a normal `📚 Reading Queue` Zotero tag, so it syncs across devices and remains portable outside Spotlight.
+
+### 6. Preferences and Shortcut Reference
+
+- Configure independent search and command shortcuts with automatic conflict swapping.
+- Set the result limit and Spotlight window width and height.
+- Enable or disable annotation search, restoration of the previous query, and the filter hint bar.
+- Reset all Spotlight preferences to their defaults in one click.
+- Open the built-in shortcut guide with `Cmd/Ctrl+/` to see Spotlight controls, frequent Zotero shortcuts, available command shortcuts, and shortcuts contributed by other plugins or the active window.
 
 ## Contributing
 
