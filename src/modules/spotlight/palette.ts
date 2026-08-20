@@ -38,6 +38,11 @@ import {
   NORMALIZED_READING_QUEUE_TAG,
   setReadingQueueState,
 } from "./readingQueue";
+import {
+  parseCollectionModeQuery,
+  searchCollections,
+  type CollectionNavigationResult,
+} from "./collectionSearch";
 
 const HTML_NS = "http://www.w3.org/1999/xhtml";
 
@@ -48,6 +53,9 @@ type HistoryResult = {
   subtitle: string;
   score: number;
 };
+
+type PaletteResult =
+  QuickOpenResult | CollectionNavigationResult | CommandResult | HistoryResult;
 
 type PanelAction = {
   id: string;
@@ -87,7 +95,7 @@ export class PaletteUI {
   private searchService: SearchService;
   private commandRegistry: CommandRegistry;
   private actionHandler: ActionHandler;
-  private results: Array<QuickOpenResult | CommandResult | HistoryResult> = [];
+  private results: PaletteResult[] = [];
   private selectedIndex = 0;
   private panelMode: "preview" | "actions" = "preview";
   private viewMode: "search" | "shortcuts" = "search";
@@ -101,7 +109,8 @@ export class PaletteUI {
   private keydownHandler: (event: KeyboardEvent) => void;
   private currentQuery = "";
   private sectionHeader = "";
-  private displayMode: "recent" | "search" | "command" = "recent";
+  private displayMode: "recent" | "search" | "command" | "collection" =
+    "recent";
   private lastOpenReaderIDs = new Set<number>();
   private recentClosedAttachmentIDs: number[] = [];
   private recentActivatedItemIDs: number[] = [];
@@ -504,9 +513,29 @@ export class PaletteUI {
   private async updateResults(query: string): Promise<void> {
     const token = (this.searchToken += 1);
     const parsedQuery = this.parseQuery(query);
-    this.updateCollectionBarVisibility(parsedQuery.isCommandMode);
+    this.updateCollectionBarVisibility(
+      parsedQuery.isCommandMode || parsedQuery.isCollectionMode,
+    );
     this.currentQuery = parsedQuery.query;
     const resultsLimit = this.getResultsLimit();
+    if (parsedQuery.isCollectionMode) {
+      this.results = searchCollections(
+        this.currentQuery,
+        this.win,
+        resultsLimit,
+      );
+      if (token !== this.searchToken) return;
+      this.panelMode = "preview";
+      this.actionQuery = "";
+      this.actionInput = null;
+      this.selectedActionIndex = 0;
+      this.sectionHeader = "Collections & Libraries";
+      this.displayMode = "collection";
+      this.selectedIndex = 0;
+      this.updateBodyMode();
+      this.renderResults();
+      return;
+    }
     // >tabs command
     if (
       parsedQuery.isCommandMode &&
@@ -617,7 +646,7 @@ export class PaletteUI {
   }
 
   private async markBestAttachmentBadges(
-    results: Array<QuickOpenResult | CommandResult | HistoryResult>,
+    results: PaletteResult[],
   ): Promise<void> {
     await Promise.all(
       results.map(async (result) => {
@@ -729,6 +758,11 @@ export class PaletteUI {
       }
       return;
     }
+    if (result.kind === "collection") {
+      await this.openCollectionResult(result);
+      this.hide();
+      return;
+    }
     if (result.kind === "annotation") {
       await this.openAnnotation(result as AnnotationResult, intent);
       this.hide();
@@ -741,6 +775,19 @@ export class PaletteUI {
     }
     this.pushRecentSearch(this.currentQuery);
     this.hide();
+  }
+
+  private async openCollectionResult(
+    result: CollectionNavigationResult,
+  ): Promise<void> {
+    const mainWindow = Zotero.getMainWindow();
+    mainWindow?.Zotero_Tabs?.select?.("zotero-pane");
+    const collectionsView = mainWindow?.ZoteroPane?.collectionsView;
+    if (!collectionsView) {
+      return;
+    }
+    await collectionsView.selectByID(result.treeViewID);
+    collectionsView.focus?.();
   }
 
   private async openAnnotation(
@@ -823,7 +870,9 @@ export class PaletteUI {
           ? "No recent items"
           : this.displayMode === "command"
             ? "No commands"
-            : "No results";
+            : this.displayMode === "collection"
+              ? "No matching collections or libraries"
+              : "No results";
       this.list.appendChild(empty);
       this.renderPreview();
       return;
@@ -831,7 +880,11 @@ export class PaletteUI {
 
     // Category counts
     const itemCount = this.results.filter(
-      (r) => r.kind !== "annotation",
+      (r) =>
+        r.kind !== "annotation" &&
+        r.kind !== "collection" &&
+        r.kind !== "command" &&
+        r.kind !== "history",
     ).length;
     const annoCount = this.results.filter(
       (r) => r.kind === "annotation",
@@ -2526,12 +2579,16 @@ export class PaletteUI {
             ? "Start typing to search your Zotero library."
             : this.displayMode === "command"
               ? "Type after `>` to discover commands."
-              : "No matching result to preview.",
+              : this.displayMode === "collection"
+                ? "No matching collection or library."
+                : "No matching result to preview.",
           this.displayMode === "recent"
             ? "Recent searches, open tabs, and recently visited items appear here."
             : this.displayMode === "command"
               ? "Arrow through commands to inspect shortcuts and context before running them."
-              : "Try a broader query or use filters like `:pdf`, `#tag`, `y:2024`, or `=exact phrase` for PDF text.",
+              : this.displayMode === "collection"
+                ? "Try a broader collection name or search by a parent or group name."
+                : "Try a broader query or use filters like `:pdf`, `#tag`, `y:2024`, or `=exact phrase` for PDF text.",
         ),
       );
       return;
@@ -2563,6 +2620,12 @@ export class PaletteUI {
       this.previewPanel.appendChild(shell);
       return;
     }
+    if (result.kind === "collection") {
+      this.renderCollectionPreview(detailContainer, result);
+      shell.appendChild(detailContainer);
+      this.previewPanel.appendChild(shell);
+      return;
+    }
     if (result.kind === "annotation") {
       this.renderAnnotationPreview(detailContainer, result as AnnotationResult);
       shell.appendChild(detailContainer);
@@ -2572,6 +2635,26 @@ export class PaletteUI {
     this.renderItemPreview(detailContainer, result as QuickOpenResult);
     shell.appendChild(detailContainer);
     this.previewPanel.appendChild(shell);
+  }
+
+  private renderCollectionPreview(
+    container: HTMLElement,
+    result: CollectionNavigationResult,
+  ): void {
+    const typeLabel =
+      result.targetType === "library"
+        ? result.libraryKind === "group"
+          ? "Group Library"
+          : "Library"
+        : "Collection";
+    container.appendChild(
+      this.createPreviewHeader(typeLabel, result.title, result.subtitle),
+    );
+    this.appendPreviewChips(container, "spotlight-preview-meta", [
+      { label: "Enter to switch" },
+      ...(result.libraryKind === "group" ? [{ label: "Group" }] : []),
+    ]);
+    this.appendPreviewSection(container, "Destination", result.subtitle, false);
   }
 
   private renderHistoryPreview(
@@ -2885,8 +2968,7 @@ export class PaletteUI {
     return "Inspect the result here, then open it when you are ready.";
   }
 
-  private getSelectedResult():
-    QuickOpenResult | CommandResult | HistoryResult | null {
+  private getSelectedResult(): PaletteResult | null {
     return this.results[this.selectedIndex] || null;
   }
 
@@ -2931,6 +3013,23 @@ export class PaletteUI {
             if (executed) {
               this.hide();
             }
+          },
+        },
+      ];
+    }
+    if (result.kind === "collection") {
+      return [
+        {
+          id: "open-collection-result",
+          label:
+            result.targetType === "library"
+              ? "Open library"
+              : "Open collection",
+          icon: this.getActionCommandIcon("collection", "↵"),
+          hint: "Switch to this destination in Zotero's library pane",
+          run: async () => {
+            await this.openCollectionResult(result);
+            this.hide();
           },
         },
       ];
@@ -3554,10 +3653,7 @@ export class PaletteUI {
     return "File Manager";
   }
 
-  private applyResultIcon(
-    icon: HTMLElement,
-    result: QuickOpenResult | CommandResult | HistoryResult,
-  ): void {
+  private applyResultIcon(icon: HTMLElement, result: PaletteResult): void {
     if (result.kind === "history") {
       icon.textContent = "*";
       return;
@@ -3572,6 +3668,10 @@ export class PaletteUI {
       } else {
         icon.textContent = ">";
       }
+      return;
+    }
+    if (result.kind === "collection") {
+      icon.style.backgroundImage = `url("chrome://zotero/skin/16/universal/library-collection.svg")`;
       return;
     }
     if (result.kind === "annotation") {
@@ -3708,6 +3808,7 @@ export class PaletteUI {
   private parseQuery(rawQuery: string): {
     isCommandMode: boolean;
     isPdfTextMode: boolean;
+    isCollectionMode: boolean;
     query: string;
   } {
     const trimmedStart = rawQuery.trimStart();
@@ -3715,19 +3816,31 @@ export class PaletteUI {
       return {
         isCommandMode: true,
         isPdfTextMode: false,
+        isCollectionMode: false,
         query: trimmedStart.slice(1).trim(),
+      };
+    }
+    const collectionQuery = parseCollectionModeQuery(rawQuery);
+    if (collectionQuery.isCollectionMode) {
+      return {
+        isCommandMode: false,
+        isPdfTextMode: false,
+        isCollectionMode: true,
+        query: collectionQuery.query,
       };
     }
     if (trimmedStart.startsWith("=")) {
       return {
         isCommandMode: false,
         isPdfTextMode: true,
+        isCollectionMode: false,
         query: trimmedStart,
       };
     }
     return {
       isCommandMode: false,
       isPdfTextMode: false,
+      isCollectionMode: false,
       query: rawQuery.trim(),
     };
   }
@@ -3756,7 +3869,7 @@ export class PaletteUI {
 
   private appendResultBadges(
     row: HTMLElement,
-    result: QuickOpenResult | CommandResult | HistoryResult,
+    result: PaletteResult,
     isOpenTab: boolean,
     quickOpenNumber: number | null,
   ): void {
@@ -3784,6 +3897,18 @@ export class PaletteUI {
         const shortcutTag = this.createElement("span", "spotlight-tag");
         shortcutTag.textContent = (result as CommandResult).shortcut!;
         row.appendChild(shortcutTag);
+      }
+      return;
+    }
+    if (result.kind === "collection") {
+      const typeBadge = this.createElement("span", "spotlight-tag");
+      typeBadge.textContent =
+        result.targetType === "library" ? "LIBRARY" : "COLLECTION";
+      row.appendChild(typeBadge);
+      if (result.libraryKind === "group") {
+        const groupBadge = this.createElement("span", "spotlight-tag");
+        groupBadge.textContent = "GROUP";
+        row.appendChild(groupBadge);
       }
       return;
     }
@@ -3950,6 +4075,12 @@ export class PaletteUI {
           title: "Filter to notes only\nExample: :note meeting",
         },
         {
+          label: ":col",
+          insert: ":col ",
+          title:
+            "Search collections and group libraries only\nExample: :col machine learning",
+        },
+        {
           label: "#tag",
           insert: "#",
           title:
@@ -4069,6 +4200,7 @@ export class PaletteUI {
       "note",
       "item",
       "annotation",
+      "col",
     ];
     const yearValues = ["2024", "2023", "2020-2024", ">=2020", "<=2024"];
     let options: string[];
