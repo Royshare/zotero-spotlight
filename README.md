@@ -1,6 +1,6 @@
 # Zotero Spotlight
 
-[![zotero target version](https://img.shields.io/badge/Zotero-7%2F8-green?style=flat-square&logo=zotero&logoColor=CC2936)](https://www.zotero.org)
+[![zotero target version](https://img.shields.io/badge/Zotero-7%2F8%2F9%2F10-green?style=flat-square&logo=zotero&logoColor=CC2936)](https://www.zotero.org)
 [![Using Zotero Plugin Template](https://img.shields.io/badge/Using-Zotero%20Plugin%20Template-blue?style=flat-square&logo=github)](https://github.com/windingwind/zotero-plugin-template)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-orange?style=flat-square&logo=buy-me-a-coffee)](https://www.buymeacoffee.com/royshare)
 
@@ -79,9 +79,9 @@ The implementation roadmap and phase-by-phase development notes live in `doc/roa
 
 ## Status
 
-- Version: v0.4 (experimental)
-- Developed for Zotero 8.x, should work with Zotero 7.x.
-- MacOS tested.
+- Version: v0.6.0 (experimental)
+- Supports Zotero 7 through Zotero 10.
+- Zotero 10.0 tested on macOS.
 - Windows / Linux expected to work but not fully tested.
 
 Feedback welcome.
