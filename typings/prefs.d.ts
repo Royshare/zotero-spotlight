@@ -11,6 +11,7 @@ declare namespace _ZoteroTypes {
       "commandShortcutEnabled": boolean;
       "searchShortcut": string;
       "commandShortcut": string;
+      "guideShortcut": string;
       "resultsLimit": number;
     };
   }

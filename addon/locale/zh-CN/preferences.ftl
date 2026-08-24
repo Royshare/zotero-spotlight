@@ -18,6 +18,12 @@ pref-shortcut-mod-o = { PLATFORM() ->
        *[other] Ctrl+O
     }
 pref-shortcut-off = 关闭
+pref-shortcut-guide-label = 打开快捷键指南
+pref-shortcut-guide-on = { PLATFORM() ->
+        [macos] ⌘+/
+       *[other] Ctrl+/
+    }
+pref-shortcut-guide-off-note = 仅在笔记标签页中关闭
 pref-shortcut-conflict-note = 选择已在使用的快捷键时，两个操作的快捷键会自动交换。
 pref-results-section = 结果限制
 pref-results-limit = 结果数量上限

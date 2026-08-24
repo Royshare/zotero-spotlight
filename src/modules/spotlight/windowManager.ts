@@ -5,6 +5,9 @@ import { isWindowAlive } from "../../utils/window";
 import { getPref } from "../../utils/prefs";
 import {
   getShortcutFromEvent,
+  isGuideShortcutEnabled,
+  isNoteTabType,
+  resolveGuideShortcutMode,
   resolveShortcutConfig,
   resolveSpotlightShortcut,
   type SpotlightLaunchMode,
@@ -47,7 +50,7 @@ export class WindowManager {
     }
     const palette = new PaletteUI(win, this.searchService, new ActionHandler());
     const handler = (event: KeyboardEvent) => {
-      if (isShortcutGuideEvent(event)) {
+      if (isShortcutGuideEvent(event, win)) {
         event.preventDefault();
         event.stopPropagation();
         palette.toggleShortcutGuide();
@@ -182,7 +185,7 @@ function getShortcutAction(event: KeyboardEvent): SpotlightLaunchMode | null {
   return resolveSpotlightShortcut(pressedShortcut, config);
 }
 
-function isShortcutGuideEvent(event: KeyboardEvent): boolean {
+function isShortcutGuideEvent(event: KeyboardEvent, win: Window): boolean {
   if (event.altKey || event.shiftKey) {
     return false;
   }
@@ -191,5 +194,29 @@ function isShortcutGuideEvent(event: KeyboardEvent): boolean {
     return false;
   }
   const key = event.key?.toLowerCase();
-  return key === "/" || event.code === "Slash";
+  if (key !== "/" && event.code !== "Slash") {
+    return false;
+  }
+  const mode = resolveGuideShortcutMode(getPref("guideShortcut"));
+  return isGuideShortcutEnabled(mode, isNoteTabActive(win));
+}
+
+function isNoteTabActive(win: Window): boolean {
+  const localTabs = (win as any).Zotero_Tabs as
+    _ZoteroTypes.Zotero_Tabs | undefined;
+  if (localTabs?.selectedType) {
+    return isNoteTabType(localTabs.selectedType);
+  }
+  const mainTabs = Zotero.getMainWindow()?.Zotero_Tabs as
+    _ZoteroTypes.Zotero_Tabs | undefined;
+  if (mainTabs?.selectedType) {
+    return isNoteTabType(mainTabs.selectedType);
+  }
+  const windowType = (
+    win.document?.documentElement?.getAttribute("windowtype") || ""
+  ).toLowerCase();
+  if (windowType.includes("note")) {
+    return true;
+  }
+  return (win.location?.href || "").toLowerCase().includes("note");
 }
