@@ -14,6 +14,14 @@ export const SPOTLIGHT_SHORTCUT_OPTIONS: SpotlightShortcut[] = [
   "mod-o",
 ];
 
+export type SpotlightGuideShortcutMode = "on" | "off" | "off-note";
+
+export const SPOTLIGHT_GUIDE_SHORTCUT_OPTIONS: SpotlightGuideShortcutMode[] = [
+  "on",
+  "off",
+  "off-note",
+];
+
 export function resolveShortcutConfig(
   searchValue: unknown,
   commandValue: unknown,
@@ -133,4 +141,39 @@ function getAlternativeShortcut(
   shortcut: SpotlightShortcut,
 ): "mod-p" | "mod-shift-p" {
   return shortcut === "mod-p" ? "mod-shift-p" : "mod-p";
+}
+
+export function resolveGuideShortcutMode(
+  value: unknown,
+): SpotlightGuideShortcutMode {
+  return isGuideShortcutMode(value) ? value : "on";
+}
+
+export function isGuideShortcutEnabled(
+  mode: SpotlightGuideShortcutMode,
+  isNoteTab: boolean,
+): boolean {
+  if (mode === "off") {
+    return false;
+  }
+  if (mode === "off-note" && isNoteTab) {
+    return false;
+  }
+  return true;
+}
+
+export function isNoteTabType(value: unknown): boolean {
+  return (
+    String(value || "")
+      .split("-")[0]
+      .toLowerCase() === "note"
+  );
+}
+
+function isGuideShortcutMode(
+  value: unknown,
+): value is SpotlightGuideShortcutMode {
+  return SPOTLIGHT_GUIDE_SHORTCUT_OPTIONS.includes(
+    value as SpotlightGuideShortcutMode,
+  );
 }

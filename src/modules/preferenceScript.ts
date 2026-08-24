@@ -2,6 +2,7 @@ import { config } from "../../package.json";
 import { getPref, setPref } from "../utils/prefs";
 import {
   assignSpotlightShortcut,
+  resolveGuideShortcutMode,
   resolveShortcutConfig,
 } from "./spotlight/shortcuts";
 
@@ -34,6 +35,14 @@ function syncPrefUI() {
     const shortcuts = getConfiguredShortcuts();
     searchShortcutSelect.value = shortcuts.search;
     commandShortcutSelect.value = shortcuts.command;
+  }
+  const guideShortcutSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-guide-shortcut`,
+  ) as HTMLSelectElement | null;
+  if (guideShortcutSelect) {
+    guideShortcutSelect.value = resolveGuideShortcutMode(
+      getPref("guideShortcut"),
+    );
   }
   const limitInput = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-results-limit`,
@@ -93,6 +102,14 @@ function bindPrefEvents() {
     `#zotero-prefpane-${config.addonRef}-command-shortcut`,
   ) as HTMLSelectElement | null;
   bindShortcutEvents(searchShortcutSelect, commandShortcutSelect);
+  const guideShortcutSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-guide-shortcut`,
+  ) as HTMLSelectElement | null;
+  guideShortcutSelect?.addEventListener("change", () => {
+    const value = resolveGuideShortcutMode(guideShortcutSelect.value);
+    guideShortcutSelect.value = value;
+    setPref("guideShortcut", value);
+  });
   const limitInput = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-results-limit`,
   ) as HTMLInputElement | null;
@@ -143,6 +160,7 @@ function bindPrefEvents() {
     setPref("commandShortcutEnabled", true);
     setPref("searchShortcut", "mod-p");
     setPref("commandShortcut", "mod-shift-p");
+    setPref("guideShortcut", "on");
     setPref("resultsLimit", 20);
     (setPref as any)("windowHeight", 400);
     (setPref as any)("windowWidth", 560);

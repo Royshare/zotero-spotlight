@@ -2,6 +2,9 @@ import { assert } from "chai";
 import {
   assignSpotlightShortcut,
   getShortcutFromEvent,
+  isGuideShortcutEnabled,
+  isNoteTabType,
+  resolveGuideShortcutMode,
   resolveShortcutConfig,
   resolveSpotlightShortcut,
 } from "../src/modules/spotlight/shortcuts";
@@ -69,5 +72,30 @@ describe("Spotlight shortcuts", function () {
       search: "mod-p",
       command: "mod-k",
     });
+  });
+
+  it("resolves the shortcut guide mode", function () {
+    assert.equal(resolveGuideShortcutMode("on"), "on");
+    assert.equal(resolveGuideShortcutMode("off"), "off");
+    assert.equal(resolveGuideShortcutMode("off-note"), "off-note");
+    assert.equal(resolveGuideShortcutMode(""), "on");
+    assert.equal(resolveGuideShortcutMode(undefined), "on");
+  });
+
+  it("disables the shortcut guide globally or in note tabs", function () {
+    assert.isTrue(isGuideShortcutEnabled("on", false));
+    assert.isTrue(isGuideShortcutEnabled("on", true));
+    assert.isFalse(isGuideShortcutEnabled("off", false));
+    assert.isFalse(isGuideShortcutEnabled("off", true));
+    assert.isTrue(isGuideShortcutEnabled("off-note", false));
+    assert.isFalse(isGuideShortcutEnabled("off-note", true));
+  });
+
+  it("recognizes note tab types", function () {
+    assert.isTrue(isNoteTabType("note"));
+    assert.isTrue(isNoteTabType("note-editor"));
+    assert.isFalse(isNoteTabType("reader"));
+    assert.isFalse(isNoteTabType("library"));
+    assert.isFalse(isNoteTabType(""));
   });
 });

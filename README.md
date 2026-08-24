@@ -48,7 +48,8 @@ Inside Spotlight:
 
 Search and command shortcuts can be assigned independently in Preferences to
 `Cmd/Ctrl+P`, `Cmd/Ctrl+Shift+P`, `Cmd/Ctrl+K`, or `Cmd/Ctrl+O`. Command mode can
-also be disabled.
+also be disabled. The shortcut guide (`Cmd/Ctrl+/`) can be turned off globally
+or only in note tabs.
 
 ## Features
 
@@ -109,6 +110,7 @@ results.
 ### 6. Preferences and Shortcut Reference
 
 - Configure independent search and command shortcuts with automatic conflict swapping.
+- Turn the `Cmd/Ctrl+/` shortcut guide off globally or only in note tabs.
 - Set the result limit and Spotlight window width and height.
 - Enable or disable annotation search, restoration of the previous query, and the filter hint bar.
 - Reset all Spotlight preferences to their defaults in one click.

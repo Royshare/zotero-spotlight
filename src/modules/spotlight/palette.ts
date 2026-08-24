@@ -29,6 +29,7 @@ import {
 import { getPref } from "../../utils/prefs";
 import {
   formatSpotlightShortcut,
+  resolveGuideShortcutMode,
   resolveShortcutConfig,
   type SpotlightLaunchMode,
 } from "./shortcuts";
@@ -1106,6 +1107,7 @@ export class PaletteUI {
   }
 
   private getShortcutGuideSections(): ShortcutGuideSection[] {
+    const guideShortcutMode = this.getGuideShortcutMode();
     return [
       {
         title: "Spotlight",
@@ -1126,12 +1128,18 @@ export class PaletteUI {
                 },
               ]
             : []),
-          {
-            label: "Open this shortcuts page",
-            shortcut: `${getModifierKeyLabel()}+/`,
-            detail:
-              "Uses the existing preview surface as a quick-reference page.",
-          },
+          ...(guideShortcutMode !== "off"
+            ? [
+                {
+                  label: "Open this shortcuts page",
+                  shortcut: `${getModifierKeyLabel()}+/`,
+                  detail:
+                    guideShortcutMode === "off-note"
+                      ? "Uses the existing preview surface as a quick-reference page. Disabled in note tabs."
+                      : "Uses the existing preview surface as a quick-reference page.",
+                },
+              ]
+            : []),
           {
             label: "Open contextual actions",
             shortcut: "Tab",
@@ -1435,6 +1443,10 @@ export class PaletteUI {
       getPref("shortcutMode"),
       getPref("commandShortcutEnabled"),
     );
+  }
+
+  private getGuideShortcutMode() {
+    return resolveGuideShortcutMode(getPref("guideShortcut"));
   }
 
   private getSpotlightShortcutLabel(mode: SpotlightLaunchMode): string {
@@ -4133,7 +4145,10 @@ export class PaletteUI {
       "spotlight-filter-hint-badge spotlight-shortcut-guide-btn",
     ) as HTMLButtonElement;
     shortcutBtn.textContent = "⌨";
-    shortcutBtn.title = `Keyboard shortcuts (${getModifierKeyLabel()}+/)`;
+    shortcutBtn.title =
+      this.getGuideShortcutMode() === "off"
+        ? "Keyboard shortcuts"
+        : `Keyboard shortcuts (${getModifierKeyLabel()}+/)`;
     shortcutBtn.style.marginLeft = "auto";
     shortcutBtn.addEventListener("mousedown", (e) => {
       e.preventDefault();

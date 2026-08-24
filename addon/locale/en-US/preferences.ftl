@@ -18,6 +18,12 @@ pref-shortcut-mod-o = { PLATFORM() ->
        *[other] Ctrl+O
     }
 pref-shortcut-off = Off
+pref-shortcut-guide-label = Open shortcut guide
+pref-shortcut-guide-on = { PLATFORM() ->
+        [macos] ⌘+/
+       *[other] Ctrl+/
+    }
+pref-shortcut-guide-off-note = Off in note tab
 pref-shortcut-conflict-note = Choosing a shortcut already in use swaps the two assignments.
 pref-results-section = Results
 pref-results-limit = Results limit
