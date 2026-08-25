@@ -9,6 +9,13 @@ import {
 } from "./itemMetadata";
 import { getPref } from "../../utils/prefs";
 import { NORMALIZED_READING_QUEUE_TAG } from "./readingQueue";
+import {
+  includesUnlistedAsLow,
+  LIBRARY_BOOST_STEP,
+  parsePriorityConfig,
+  restrictsToSelectedLibraries,
+  getResultTypeRank,
+} from "./collectionPriority";
 
 export type QuickOpenResult = ItemResult | AttachmentResult | AnnotationResult;
 
@@ -134,6 +141,12 @@ export class SearchService {
 
     const parsedQuery = parseStructuredQuery(query);
     const activeLibraryID = this.getActiveLibraryID(win);
+    const priorityConfig = parsePriorityConfig(
+      (getPref as any)("collectionPriorities") as string | null,
+    );
+    const restrictToSelected = restrictsToSelectedLibraries(priorityConfig);
+    const demoteUnlisted = includesUnlistedAsLow(priorityConfig);
+    const selectedLibraries = new Set(priorityConfig.libraries);
     await this.ensureBaseIndex();
     const searchAnnotations = shouldSearchAnnotations(parsedQuery);
     if (searchAnnotations) {
@@ -180,6 +193,15 @@ export class SearchService {
       );
       const libraryBoost =
         activeLibraryID !== null && activeLibraryID === entry.libraryID ? 6 : 0;
+      if (!selectedLibraries.has(entry.libraryID) && restrictToSelected) {
+        continue;
+      }
+      // Listed libraries rank above unlisted ones when the user chose
+      // to keep unlisted libraries searchable ("low" mode).
+      const librarySelectionBoost =
+        demoteUnlisted && selectedLibraries.has(entry.libraryID)
+          ? LIBRARY_BOOST_STEP
+          : 0;
 
       if (entry.kind === "annotation") {
         results.push({
@@ -188,7 +210,12 @@ export class SearchService {
           resultType: "annotation",
           title: entry.title,
           subtitle: entry.subtitle,
-          score: baseScore + frequencyBoost + recencyBoost + libraryBoost,
+          score:
+            baseScore +
+            frequencyBoost +
+            recencyBoost +
+            libraryBoost +
+            librarySelectionBoost,
           year: entry.year === null ? undefined : entry.year,
           libraryKind: entry.libraryKind,
           authors: entry.authors || undefined,
@@ -206,7 +233,12 @@ export class SearchService {
           resultType: entry.resultType,
           title: entry.title,
           subtitle: entry.subtitle,
-          score: baseScore + frequencyBoost + recencyBoost + libraryBoost,
+          score:
+            baseScore +
+            frequencyBoost +
+            recencyBoost +
+            libraryBoost +
+            librarySelectionBoost,
           year: entry.year === null ? undefined : entry.year,
           libraryKind: entry.libraryKind,
           authors: entry.authors || undefined,
@@ -222,9 +254,16 @@ export class SearchService {
       }
       return r.kind === "annotation" ? 1 : 0;
     };
+    // resultTypes act as strict tiers in ranked order (1 = highest).
+    // Unranked types fall back to match quality, below all ranked types.
+    const typeRank = (r: QuickOpenResult) =>
+      getResultTypeRank(r.resultType, priorityConfig) ??
+      Number.POSITIVE_INFINITY;
     const sorted = results.sort((a, b) => {
       const kindDiff = kindOrder(a) - kindOrder(b);
       if (kindDiff !== 0) return kindDiff;
+      const rankDiff = typeRank(a) - typeRank(b);
+      if (rankDiff !== 0) return rankDiff;
       return b.score - a.score;
     });
 
@@ -328,6 +367,14 @@ export class SearchService {
       return [];
     }
 
+    // Default scoping applies to PDF text search as well; :col keeps
+    // full authority over collections elsewhere.
+    const priorityConfig = parsePriorityConfig(
+      (getPref as any)("collectionPriorities") as string | null,
+    );
+    const selectedLibraries = new Set(priorityConfig.libraries);
+    const restrictToSelected = restrictsToSelectedLibraries(priorityConfig);
+
     const seenAttachmentIDs = new Set<number>();
     const results: AttachmentResult[] = [];
     const collectionLibraryID =
@@ -339,7 +386,11 @@ export class SearchService {
         ? Zotero.Libraries.getAll().filter(
             (library) => library.libraryID === collectionLibraryID,
           )
-        : Zotero.Libraries.getAll();
+        : restrictToSelected
+          ? Zotero.Libraries.getAll().filter((library) =>
+              selectedLibraries.has(library.libraryID),
+            )
+          : Zotero.Libraries.getAll();
 
     for (const library of libraries) {
       try {
