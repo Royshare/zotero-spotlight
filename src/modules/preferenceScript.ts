@@ -4,6 +4,14 @@ import {
   assignSpotlightShortcut,
   resolveShortcutConfig,
 } from "./spotlight/shortcuts";
+import {
+  PRIORITIZED_RESULT_TYPES,
+  type PriorityConfig,
+  type PrioritizedResultType,
+  emptyPriorityConfig,
+  parsePriorityConfig,
+  serializePriorityConfig,
+} from "./spotlight/collectionPriority";
 
 export async function registerPrefsScripts(_window: Window) {
   if (!addon.data.prefs) {
@@ -79,6 +87,16 @@ function syncPrefUI() {
     filterHintBarCheckbox.checked =
       val === undefined || val === null ? true : !!val;
   }
+  const prioritiesTextarea = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-collection-priorities`,
+  ) as HTMLTextAreaElement | null;
+  if (prioritiesTextarea) {
+    const val = (getPref as any)("collectionPriorities") as string | null;
+    prioritiesTextarea.value = serializePriorityConfig(
+      parsePriorityConfig(typeof val === "string" ? val : null),
+    );
+  }
+  renderPriorityControls(doc);
 }
 
 function bindPrefEvents() {
@@ -135,6 +153,7 @@ function bindPrefEvents() {
   filterHintBarCheckboxBind?.addEventListener("change", () => {
     (setPref as any)("showFilterHintBar", filterHintBarCheckboxBind.checked);
   });
+  bindPrioritiesGui(doc);
   const resetButton = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-reset-defaults`,
   ) as HTMLButtonElement | null;
@@ -151,6 +170,221 @@ function bindPrefEvents() {
     (setPref as any)("showFilterHintBar", true);
     syncPrefUI();
   });
+}
+
+function getPriorityConfigFromPref(): PriorityConfig {
+  const val = (getPref as any)("collectionPriorities") as string | null;
+  return parsePriorityConfig(typeof val === "string" ? val : null);
+}
+
+function savePriorityConfig(doc: Document, next: PriorityConfig): void {
+  const canonical = serializePriorityConfig(next);
+  (setPref as any)("collectionPriorities", canonical);
+  const textarea = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-collection-priorities`,
+  ) as HTMLTextAreaElement | null;
+  if (textarea) {
+    textarea.value = canonical;
+  }
+  updatePriorityStatus(doc, null, true);
+}
+
+function priorityGuiQuery(doc: Document, suffix: string): HTMLElement | null {
+  return doc.querySelector(`#zotero-prefpane-${config.addonRef}-${suffix}`);
+}
+
+function renderPriorityLibraries(doc: Document, config: PriorityConfig): void {
+  const container = priorityGuiQuery(doc, "priority-libraries");
+  if (!container) {
+    return;
+  }
+  container.replaceChildren();
+  const selected = new Set(config.libraries);
+  for (const library of Zotero.Libraries.getAll()) {
+    if (
+      library.archived ||
+      (library.libraryType !== "user" && library.libraryType !== "group")
+    ) {
+      continue;
+    }
+    const row = doc.createElement("div");
+    row.style.display = "flex";
+    row.style.alignItems = "center";
+    row.style.gap = "6px";
+    const checkbox = doc.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = selected.has(library.libraryID);
+    checkbox.addEventListener("change", () => {
+      const next = getPriorityConfigFromPref();
+      const set = new Set(next.libraries);
+      if (checkbox.checked) {
+        set.add(library.libraryID);
+      } else {
+        set.delete(library.libraryID);
+      }
+      next.libraries = Array.from(set);
+      savePriorityConfig(doc, next);
+    });
+    const label = doc.createElement("label");
+    label.textContent =
+      library.libraryType === "group"
+        ? `${library.name || "Library"} (group)`
+        : library.name || "Library";
+    row.appendChild(checkbox);
+    row.appendChild(label);
+    container.appendChild(row);
+  }
+}
+
+function renderResultTypeTiers(doc: Document, config: PriorityConfig): void {
+  const container = priorityGuiQuery(doc, "result-tiers");
+  if (!container) {
+    return;
+  }
+  container.replaceChildren();
+  const rankOf = (type: PrioritizedResultType) => config.resultTypes[type];
+  const ranked = PRIORITIZED_RESULT_TYPES.filter(
+    (type) => typeof rankOf(type) === "number",
+  ).sort((a, b) => (rankOf(a) as number) - (rankOf(b) as number));
+
+  const typeLabels: Record<PrioritizedResultType, string> = {
+    item: "Item",
+    note: "Note",
+    pdf: "PDF",
+    epub: "EPUB",
+    snapshot: "Snapshot",
+    annotation: "Annotation",
+    link: "Link",
+  };
+
+  for (const type of PRIORITIZED_RESULT_TYPES) {
+    const currentRank = rankOf(type);
+    const row = doc.createElement("div");
+    row.style.display = "flex";
+    row.style.alignItems = "center";
+    row.style.gap = "8px";
+    const label = doc.createElement("label");
+    label.textContent = typeLabels[type];
+    label.style.minWidth = "90px";
+    const select = doc.createElement("select") as HTMLSelectElement;
+    const unrankedOption = doc.createElement("option");
+    unrankedOption.value = "";
+    unrankedOption.textContent = "—";
+    select.appendChild(unrankedOption);
+    // Positions 1..rankedCount; an unranked type may also take the next slot.
+    const positionCount =
+      currentRank === undefined ? ranked.length + 1 : ranked.length;
+    for (let position = 1; position <= positionCount; position += 1) {
+      const option = doc.createElement("option");
+      option.value = String(position);
+      option.textContent = String(position);
+      select.appendChild(option);
+    }
+    select.value = currentRank === undefined ? "" : String(currentRank);
+    select.addEventListener("change", () => {
+      const next = getPriorityConfigFromPref();
+      const withoutType = PRIORITIZED_RESULT_TYPES.filter(
+        (entry) => entry !== type && next.resultTypes[entry] !== undefined,
+      ).sort(
+        (a, b) =>
+          (next.resultTypes[a] as number) - (next.resultTypes[b] as number),
+      );
+      delete next.resultTypes[type];
+      const rawValue = select.value;
+      if (rawValue !== "") {
+        const position = Math.max(
+          1,
+          Math.min(
+            rawValue === "" ? withoutType.length : Number(rawValue),
+            withoutType.length + 1,
+          ),
+        );
+        withoutType.splice(position - 1, 0, type);
+        withoutType.forEach((entry, index) => {
+          next.resultTypes[entry] = index + 1;
+        });
+      } else {
+        withoutType.forEach((entry, index) => {
+          next.resultTypes[entry] = index + 1;
+        });
+      }
+      savePriorityConfig(doc, next);
+      renderResultTypeTiers(doc, getPriorityConfigFromPref());
+    });
+    row.appendChild(label);
+    row.appendChild(select);
+    container.appendChild(row);
+  }
+}
+
+function renderPriorityControls(doc: Document): void {
+  const current = getPriorityConfigFromPref();
+  renderPriorityLibraries(doc, current);
+  renderResultTypeTiers(doc, current);
+  const unlistedCheckbox = priorityGuiQuery(
+    doc,
+    "priority-unlisted",
+  ) as HTMLInputElement | null;
+  if (unlistedCheckbox) {
+    unlistedCheckbox.checked = current.includeUnlisted;
+  }
+}
+
+function bindPrioritiesGui(doc: Document): void {
+  const unlistedCheckbox = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-priority-unlisted`,
+  ) as HTMLInputElement | null;
+  unlistedCheckbox?.addEventListener("change", () => {
+    const next = getPriorityConfigFromPref();
+    next.includeUnlisted = unlistedCheckbox.checked;
+    savePriorityConfig(doc, next);
+  });
+
+  const prioritiesTextareaBind = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-collection-priorities`,
+  ) as HTMLTextAreaElement | null;
+  const prioritiesStatus = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-collection-priorities-status`,
+  );
+  prioritiesTextareaBind?.addEventListener("change", () => {
+    let valid = false;
+    try {
+      JSON.parse(prioritiesTextareaBind.value);
+      valid = true;
+    } catch (_) {
+      valid = false;
+    }
+    if (valid) {
+      // Canonicalize (drops malformed lines) and persist.
+      const canonical = serializePriorityConfig(
+        parsePriorityConfig(prioritiesTextareaBind.value),
+      );
+      prioritiesTextareaBind.value = canonical;
+      (setPref as any)("collectionPriorities", canonical);
+      renderPriorityControls(doc);
+    }
+    updatePriorityStatus(doc, prioritiesStatus, valid);
+  });
+
+  renderPriorityControls(doc);
+}
+
+function updatePriorityStatus(
+  doc: Document,
+  statusEl: Element | null,
+  valid: boolean,
+) {
+  if (!statusEl) {
+    return;
+  }
+  const l10nID = valid
+    ? "pref-priority-status-valid"
+    : "pref-priority-status-invalid";
+  try {
+    (doc as any).l10n?.setAttributes?.(statusEl, l10nID);
+  } catch (_) {
+    statusEl.textContent = valid ? "Saved." : "Invalid JSON — not saved.";
+  }
 }
 
 function clampResultsLimit(value: number): number {

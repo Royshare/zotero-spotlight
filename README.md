@@ -114,6 +114,15 @@ results.
 - Reset all Spotlight preferences to their defaults in one click.
 - Open the built-in shortcut guide with `Cmd/Ctrl+/` to see Spotlight controls, frequent Zotero shortcuts, available command shortcuts, and shortcuts contributed by other plugins or the active window.
 
+### 7. Default Search Scope
+
+- Choose which libraries (My Library and group libraries) are searched by default with a simple checklist in Preferences → Spotlight; unchecked libraries are excluded from default results.
+- Optionally keep deselected libraries searchable at a lower rank instead of excluding them.
+- The search command always has full authority over the defaults: `:col query` searches every collection in every library regardless of the checklist, and the existing "search current collection" option still applies when active.
+- Sort result types into strict tiers (`1` = highest): any type ranked higher always appears above one ranked lower; unranked types fall back to match quality. Valid keys: `item`, `note`, `pdf`, `epub`, `snapshot`, `annotation`, `link`.
+- An empty library checklist means no restriction, so a fresh install never hides anything.
+- All settings save immediately; an Advanced drawer exposes the raw JSON (with a validity indicator) for hand-editing or sharing configurations.
+
 ## Contributing
 
 Contributions are welcome.
