@@ -12,6 +12,7 @@ declare namespace _ZoteroTypes {
       "searchShortcut": string;
       "commandShortcut": string;
       "resultsLimit": number;
+      "collectionPriorities": string;
     };
   }
 }

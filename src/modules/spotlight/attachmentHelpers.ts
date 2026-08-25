@@ -135,5 +135,8 @@ export function getAttachmentTypeMeta(type: AttachmentResultType): {
   if (type === "snapshot") {
     return { label: "Snapshot", itemType: "attachmentSnapshot" };
   }
+  if (type === "link") {
+    return { label: "Link", itemType: "attachmentWebLink" };
+  }
   return { label: "Attachment", itemType: "attachment" };
 }

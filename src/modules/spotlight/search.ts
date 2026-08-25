@@ -9,6 +9,15 @@ import {
 } from "./itemMetadata";
 import { getPref } from "../../utils/prefs";
 import { NORMALIZED_READING_QUEUE_TAG } from "./readingQueue";
+import {
+  includesUnlistedAsLow,
+  LIBRARY_BOOST_STEP,
+  getMatchOptions,
+  parsePriorityConfig,
+  restrictsToSelectedLibraries,
+  getResultTypeRank,
+} from "./collectionPriority";
+import { scoreQuery, type MatchOptions } from "./matching";
 
 export type QuickOpenResult = ItemResult | AttachmentResult | AnnotationResult;
 
@@ -19,7 +28,7 @@ export type SearchRankingState = {
 
 export type ResultKind = "item" | "attachment" | "annotation";
 export type ResultType =
-  "item" | "note" | "pdf" | "epub" | "snapshot" | "annotation";
+  "item" | "note" | "pdf" | "epub" | "snapshot" | "annotation" | "link";
 
 export interface BaseResult {
   id: number;
@@ -66,6 +75,9 @@ type IndexedEntry = {
   libraryID: number;
   libraryKind: "user" | "group";
   searchText: string;
+  // Individual searchable fields for per-field matching; searchText is
+  // their concatenation, kept for loose mode.
+  searchFields: string[];
   // annotation-specific
   annotationColor?: string;
   annotationText?: string;
@@ -134,6 +146,13 @@ export class SearchService {
 
     const parsedQuery = parseStructuredQuery(query);
     const activeLibraryID = this.getActiveLibraryID(win);
+    const priorityConfig = parsePriorityConfig(
+      (getPref as any)("collectionPriorities") as string | null,
+    );
+    const restrictToSelected = restrictsToSelectedLibraries(priorityConfig);
+    const demoteUnlisted = includesUnlistedAsLow(priorityConfig);
+    const selectedLibraries = new Set(priorityConfig.libraries);
+    const matchOptions = getMatchOptions(priorityConfig);
     await this.ensureBaseIndex();
     const searchAnnotations = shouldSearchAnnotations(parsedQuery);
     if (searchAnnotations) {
@@ -169,7 +188,7 @@ export class SearchService {
           entry.kind === "annotation" ? entry.attachmentID : entry.id;
         if (!checkID || !collectionItemIDs.has(checkID)) continue;
       }
-      const baseScore = getEntryScore(entry, parsedQuery);
+      const baseScore = getEntryScore(entry, parsedQuery, matchOptions);
       if (baseScore <= 0) {
         continue;
       }
@@ -180,6 +199,15 @@ export class SearchService {
       );
       const libraryBoost =
         activeLibraryID !== null && activeLibraryID === entry.libraryID ? 6 : 0;
+      if (!selectedLibraries.has(entry.libraryID) && restrictToSelected) {
+        continue;
+      }
+      // Listed libraries rank above unlisted ones when the user chose
+      // to keep unlisted libraries searchable ("low" mode).
+      const librarySelectionBoost =
+        demoteUnlisted && selectedLibraries.has(entry.libraryID)
+          ? LIBRARY_BOOST_STEP
+          : 0;
 
       if (entry.kind === "annotation") {
         results.push({
@@ -188,7 +216,12 @@ export class SearchService {
           resultType: "annotation",
           title: entry.title,
           subtitle: entry.subtitle,
-          score: baseScore + frequencyBoost + recencyBoost + libraryBoost,
+          score:
+            baseScore +
+            frequencyBoost +
+            recencyBoost +
+            libraryBoost +
+            librarySelectionBoost,
           year: entry.year === null ? undefined : entry.year,
           libraryKind: entry.libraryKind,
           authors: entry.authors || undefined,
@@ -206,7 +239,12 @@ export class SearchService {
           resultType: entry.resultType,
           title: entry.title,
           subtitle: entry.subtitle,
-          score: baseScore + frequencyBoost + recencyBoost + libraryBoost,
+          score:
+            baseScore +
+            frequencyBoost +
+            recencyBoost +
+            libraryBoost +
+            librarySelectionBoost,
           year: entry.year === null ? undefined : entry.year,
           libraryKind: entry.libraryKind,
           authors: entry.authors || undefined,
@@ -222,9 +260,16 @@ export class SearchService {
       }
       return r.kind === "annotation" ? 1 : 0;
     };
+    // resultTypes act as strict tiers in ranked order (1 = highest).
+    // Unranked types fall back to match quality, below all ranked types.
+    const typeRank = (r: QuickOpenResult) =>
+      getResultTypeRank(r.resultType, priorityConfig) ??
+      Number.POSITIVE_INFINITY;
     const sorted = results.sort((a, b) => {
       const kindDiff = kindOrder(a) - kindOrder(b);
       if (kindDiff !== 0) return kindDiff;
+      const rankDiff = typeRank(a) - typeRank(b);
+      if (rankDiff !== 0) return rankDiff;
       return b.score - a.score;
     });
 
@@ -328,6 +373,14 @@ export class SearchService {
       return [];
     }
 
+    // Default scoping applies to PDF text search as well; :col keeps
+    // full authority over collections elsewhere.
+    const priorityConfig = parsePriorityConfig(
+      (getPref as any)("collectionPriorities") as string | null,
+    );
+    const selectedLibraries = new Set(priorityConfig.libraries);
+    const restrictToSelected = restrictsToSelectedLibraries(priorityConfig);
+
     const seenAttachmentIDs = new Set<number>();
     const results: AttachmentResult[] = [];
     const collectionLibraryID =
@@ -339,7 +392,11 @@ export class SearchService {
         ? Zotero.Libraries.getAll().filter(
             (library) => library.libraryID === collectionLibraryID,
           )
-        : Zotero.Libraries.getAll();
+        : restrictToSelected
+          ? Zotero.Libraries.getAll().filter((library) =>
+              selectedLibraries.has(library.libraryID),
+            )
+          : Zotero.Libraries.getAll();
 
     for (const library of libraries) {
       try {
@@ -450,6 +507,13 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
             searchText: normalize(
               `${title} ${subtitle} ${authors} ${tags.join(" ")} ${abstractSnippet}`,
             ),
+            searchFields: buildSearchFields(
+              title,
+              subtitle,
+              authors,
+              tags,
+              abstractSnippet,
+            ),
           });
         } else if (item.isNote && item.isNote()) {
           const title = getNoteTitle(item);
@@ -472,6 +536,13 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
             libraryKind,
             searchText: normalize(
               `${title} ${subtitle} ${authors} ${tags.join(" ")} ${abstractSnippet}`,
+            ),
+            searchFields: buildSearchFields(
+              title,
+              subtitle,
+              authors,
+              tags,
+              abstractSnippet,
             ),
           });
         } else if (item.isAttachment() && isSearchableAttachment(item)) {
@@ -498,6 +569,51 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
             searchText: normalize(
               `${title} ${subtitle} ${authors} ${tags.join(" ")} ${abstractSnippet}`,
             ),
+            searchFields: buildSearchFields(
+              title,
+              subtitle,
+              authors,
+              tags,
+              abstractSnippet,
+            ),
+          });
+        } else if (isLinkedUrlAttachment(item)) {
+          // Linked web URLs are indexed in their own 'link' category.
+          // They inherit parent metadata when attached to a reference,
+          // so e.g. an author name matches the paper's web link too;
+          // users can demote the category via resultTypes tiers.
+          const parent = getAttachmentParentItem(item);
+          const title = getAttachmentTitle(item);
+          const subtitle = parent ? getAttachmentSubtitle(item) : "Link";
+          const authors = parent ? getItemAuthors(parent) : "";
+          const attachmentTags = getItemTags(item);
+          const parentTags = parent ? getItemTags(parent) : [];
+          const tags = [...attachmentTags, ...parentTags].filter(Boolean);
+          const abstractSnippet = parent ? getItemAbstractSnippet(parent) : "";
+          const url = safeGetUrl(item);
+          entries.push({
+            id: item.id,
+            kind: "attachment",
+            resultType: "link",
+            title,
+            subtitle,
+            authors,
+            tags,
+            abstractSnippet,
+            year: parent ? getAttachmentYearNumber(item) : null,
+            libraryID: library.libraryID,
+            libraryKind,
+            searchText: normalize(
+              `${title} ${subtitle} ${authors} ${url} ${tags.join(" ")} ${abstractSnippet}`,
+            ),
+            searchFields: [
+              normalize(title),
+              normalize(subtitle),
+              normalize(url),
+              normalize(authors),
+              ...tags.map((tag) => normalize(tag)),
+              normalize(abstractSnippet),
+            ].filter(Boolean),
           });
         }
       } catch (error) {
@@ -654,6 +770,12 @@ async function buildAnnotationIndex(): Promise<IndexedEntry[]> {
           searchText: normalize(
             `${annotationText} ${annotationComment} ${parentMeta.title} ${parentMeta.authors} ${pageLabel}`,
           ),
+          searchFields: [
+            normalize(annotationText),
+            normalize(annotationComment),
+            normalize(parentMeta.title),
+            normalize(parentMeta.authors),
+          ].filter(Boolean),
         });
       } catch (err) {
         ztoolkit.log("Spotlight skipped annotation", err);
@@ -780,6 +902,66 @@ function getAnnotationPageIndex(rawPosition?: string): number {
   }
 }
 
+function buildSearchFields(
+  title: string,
+  subtitle: string,
+  authors: string,
+  tags: string[],
+  abstractSnippet: string,
+): string[] {
+  return [
+    normalize(title),
+    normalize(subtitle),
+    normalize(authors),
+    ...tags.map((tag) => normalize(tag)),
+    normalize(abstractSnippet),
+  ].filter(Boolean);
+}
+
+/** Linked web URL attachment (a pointer, not locally stored content). */
+function isLinkedUrlAttachment(item: Zotero.Item): boolean {
+  if (!item.isAttachment()) {
+    return false;
+  }
+  if (typeof item.isAnnotation === "function" && item.isAnnotation()) {
+    return false;
+  }
+  const candidate = item as any;
+  if (
+    typeof candidate.isFileAttachment === "function" &&
+    candidate.isFileAttachment()
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function safeGetUrl(item: Zotero.Item): string {
+  try {
+    return String(item.getField?.("url") || "");
+  } catch (_) {
+    return "";
+  }
+}
+
+function getItemCollectionIDs(item: Zotero.Item | null): number[] {
+  if (!item) {
+    return [];
+  }
+  try {
+    const collections = item.getCollections?.() as number[] | undefined;
+    return (collections || []).filter(
+      (id) => typeof id === "number" && Number.isFinite(id),
+    );
+  } catch (_) {
+    return [];
+  }
+}
+
+function hasPriorityConfig(config: { order: { type: string }[] }): boolean {
+  return config.order.some((entry) => entry.type === "library");
+}
+
 function getItemLibraryID(
   attachmentItem: Zotero.Item | null,
   parentItem: Zotero.Item,
@@ -809,15 +991,19 @@ function isSearchableAttachment(item: Zotero.Item): boolean {
   ) {
     return false;
   }
+  // Only attachments backed by locally stored content (PDFs, EPUBs,
+  // snapshots) should appear in results or stand in for their parent
+  // item. Linked web URLs (e.g. PubMed query links) are just pointers,
+  // so the parent reference is indexed instead.
   if (typeof candidate.isFileAttachment === "function") {
-    if (candidate.isFileAttachment()) {
-      return true;
-    }
+    return candidate.isFileAttachment();
   }
-  if (typeof candidate.isWebAttachment === "function") {
-    if (candidate.isWebAttachment()) {
-      return true;
-    }
+  // Fallback for older APIs without isFileAttachment().
+  if (
+    typeof candidate.isWebAttachment === "function" &&
+    candidate.isWebAttachment()
+  ) {
+    return false;
   }
   const contentType =
     candidate.attachmentContentType || candidate.attachmentMIMEType;
@@ -924,9 +1110,19 @@ function parsePdfContentQuery(rawQuery: string): string | null {
   return trimmedStart.slice(1).trim();
 }
 
-function getEntryScore(entry: IndexedEntry, query: ParsedQuery): number {
+function getEntryScore(
+  entry: IndexedEntry,
+  query: ParsedQuery,
+  matchOptions: MatchOptions,
+): number {
+  // Preserve the original behavior: no text query → neutral base score.
   const baseScore = query.textQuery
-    ? fuzzyScore(query.textQuery, entry.searchText)
+    ? scoreQuery(
+        query.textQuery,
+        entry.searchFields,
+        entry.searchText,
+        matchOptions,
+      )
     : 10;
   if (baseScore <= 0) {
     return -1;
@@ -1015,7 +1211,8 @@ function parseTypeFilter(rawValue: string): ResultType[] {
       entry === "snapshot" ||
       entry === "note" ||
       entry === "item" ||
-      entry === "annotation"
+      entry === "annotation" ||
+      entry === "link"
     ) {
       parsed.push(entry as ResultType);
     }
@@ -1104,47 +1301,4 @@ function shouldSearchAnnotations(query: ParsedQuery): boolean {
 
 function normalize(value: string): string {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
-}
-
-function fuzzyScore(query: string, text: string): number {
-  const q = normalize(query);
-  const t = normalize(text);
-  if (!q || !t) {
-    return -1;
-  }
-  let score = 0;
-  let tIndex = 0;
-  let lastMatch = -1;
-  let consecutive = 0;
-  for (let i = 0; i < q.length; i += 1) {
-    const char = q[i];
-    let found = false;
-    while (tIndex < t.length) {
-      if (t[tIndex] === char) {
-        found = true;
-        break;
-      }
-      tIndex += 1;
-    }
-    if (!found) {
-      return -1;
-    }
-    if (tIndex === lastMatch + 1) {
-      consecutive += 1;
-      score += 5 + consecutive;
-    } else {
-      consecutive = 0;
-      score += 1;
-    }
-    if (tIndex === 0 || " /-_".includes(t[tIndex - 1])) {
-      score += 3;
-    }
-    lastMatch = tIndex;
-    tIndex += 1;
-  }
-  if (t.includes(q)) {
-    score += 8;
-  }
-  score += Math.max(0, 10 - (t.length - q.length));
-  return score;
 }

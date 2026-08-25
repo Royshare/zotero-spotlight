@@ -166,6 +166,121 @@
     </hbox>
   </vbox>
   <vbox>
+    <label
+      class="zotero-spotlight-section-label"
+      data-l10n-id="pref-priority-section"
+    ></label>
+    <description data-l10n-id="pref-priority-hint"></description>
+    <label
+      class="zotero-spotlight-section-label"
+      data-l10n-id="pref-priority-libraries-label"
+    ></label>
+    <html:div
+      id="zotero-prefpane-__addonRef__-priority-libraries"
+      style="
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        max-height: 220px;
+        overflow-y: auto;
+      "
+    ></html:div>
+    <hbox align="center" pack="start">
+      <html:input
+        type="checkbox"
+        id="zotero-prefpane-__addonRef__-priority-unlisted"
+        style="margin-left: 24px"
+      />
+      <html:label
+        for="zotero-prefpane-__addonRef__-priority-unlisted"
+        data-l10n-id="pref-priority-unlisted"
+        style="margin-left: 6px; opacity: 0.75; font-style: italic"
+      ></html:label>
+    </hbox>
+    <label
+      class="zotero-spotlight-section-label"
+      data-l10n-id="pref-priority-tiers-label"
+    ></label>
+    <html:div
+      id="zotero-prefpane-__addonRef__-result-tiers"
+      style="
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        max-height: 240px;
+        overflow-y: auto;
+      "
+    ></html:div>
+    <label
+      class="zotero-spotlight-section-label"
+      data-l10n-id="pref-matching-label"
+    ></label>
+    <hbox align="center" pack="start">
+      <html:label
+        for="zotero-prefpane-__addonRef__-matching-mode"
+        data-l10n-id="pref-matching-mode"
+        style="min-width: 140px"
+      ></html:label>
+      <html:select
+        id="zotero-prefpane-__addonRef__-matching-mode"
+        class="zotero-spotlight-shortcut-select"
+      >
+        <html:option
+          value="field"
+          data-l10n-id="pref-matching-mode-field"
+        ></html:option>
+        <html:option
+          value="loose"
+          data-l10n-id="pref-matching-mode-loose"
+        ></html:option>
+      </html:select>
+    </hbox>
+    <hbox align="center" pack="start">
+      <html:label
+        for="zotero-prefpane-__addonRef__-matching-typo"
+        data-l10n-id="pref-matching-typo"
+        style="min-width: 140px"
+      ></html:label>
+      <html:select
+        id="zotero-prefpane-__addonRef__-matching-typo"
+        class="zotero-spotlight-shortcut-select"
+      >
+        <html:option value="0">Off (exact words)</html:option>
+        <html:option value="1">1 edit</html:option>
+        <html:option value="2">2 edits</html:option>
+        <html:option value="3">3 edits</html:option>
+      </html:select>
+    </hbox>
+    <hbox align="center" pack="start">
+      <html:label
+        for="zotero-prefpane-__addonRef__-matching-minlen"
+        data-l10n-id="pref-matching-minlen"
+        style="min-width: 140px"
+      ></html:label>
+      <html:input
+        type="number"
+        id="zotero-prefpane-__addonRef__-matching-minlen"
+        min="1"
+        max="32"
+        step="1"
+        style="min-width: 60px"
+      ></html:input>
+    </hbox>
+    <html:details>
+      <html:summary data-l10n-id="pref-priority-advanced"></html:summary>
+      <html:textarea
+        id="zotero-prefpane-__addonRef__-collection-priorities"
+        rows="10"
+        style="font: monospace; width: 100%; resize: vertical; margin-top: 6px"
+        wrap="off"
+      ></html:textarea>
+      <description
+        id="zotero-prefpane-__addonRef__-collection-priorities-status"
+        data-l10n-id="pref-priority-status-valid"
+      ></description>
+    </html:details>
+  </vbox>
+  <vbox>
     <html:button
       id="zotero-prefpane-__addonRef__-reset-defaults"
       data-l10n-id="pref-reset-defaults"
