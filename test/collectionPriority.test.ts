@@ -1,6 +1,7 @@
 import { assert } from "chai";
 import {
   buildPriorityTemplate,
+  getMatchOptions,
   getResultTypeRank,
   includesUnlistedAsLow,
   parsePriorityConfig,
@@ -8,11 +9,16 @@ import {
   serializePriorityConfig,
   type PriorityConfig,
 } from "../src/modules/spotlight/collectionPriority";
+import {
+  DEFAULT_MATCH_OPTIONS,
+  scoreQuery,
+} from "../src/modules/spotlight/matching";
 
 const EMPTY_CONFIG = {
   libraries: [],
   includeUnlisted: false,
   resultTypes: {},
+  matching: { ...DEFAULT_MATCH_OPTIONS },
 };
 
 describe("library selection config", function () {
@@ -79,6 +85,7 @@ describe("library selection config", function () {
         libraries: [3, 7],
         includeUnlisted: true,
         resultTypes: { item: 1, pdf: 2 },
+        matching: { mode: "loose", typoDistance: 1, minTokenLength: 4 },
       } as PriorityConfig;
       const roundTripped = parsePriorityConfig(
         serializePriorityConfig(original),
@@ -100,6 +107,162 @@ describe("library selection config", function () {
       // Names survive serialization as display hints only.
       const raw = JSON.parse(template);
       assert.equal(raw.libraries.length, 2);
+    });
+
+    it("accepts the link result type", function () {
+      const linkConfig = parsePriorityConfig(
+        '{"resultTypes":{"link":2,"bogus":9}}',
+      );
+      assert.deepEqual(linkConfig.resultTypes, { link: 2 });
+      assert.equal(getResultTypeRank("link", linkConfig), 2);
+    });
+  });
+
+  describe("matching options", function () {
+    it("defaults to field mode when missing or invalid", function () {
+      assert.equal(getMatchOptions(parsePriorityConfig(null)).mode, "field");
+      assert.equal(
+        getMatchOptions(parsePriorityConfig('{"order":[]}')).mode,
+        "field",
+      );
+      assert.equal(
+        getMatchOptions(
+          parsePriorityConfig('{"order":[],"matching":{"mode":"bogus"}}'),
+        ).mode,
+        "field",
+      );
+    });
+
+    it("parses explicit loose and field modes", function () {
+      assert.equal(
+        getMatchOptions(
+          parsePriorityConfig('{"order":[],"matching":{"mode":"loose"}}'),
+        ).mode,
+        "loose",
+      );
+      assert.equal(
+        getMatchOptions(
+          parsePriorityConfig('{"order":[],"matching":{"mode":"field"}}'),
+        ).mode,
+        "field",
+      );
+    });
+
+    it("clamps typoDistance and minTokenLength to valid ranges", function () {
+      const options = getMatchOptions(
+        parsePriorityConfig(
+          '{"order":[],"matching":{"typoDistance":99,"minTokenLength":-5}}',
+        ),
+      );
+      assert.equal(options.typoDistance, 3);
+      assert.equal(options.minTokenLength, 1);
+    });
+  });
+
+  describe("scoreQuery (token-based field mode)", function () {
+    // Abstract-style text that contains the k…u…o subsequence of 'kuo'
+    // scattered across words but no actual 'kuo' word.
+    const fields = [
+      "OpenPose realtime multi-person pose estimation",
+      "Cao 2019",
+      "ask you to cite",
+    ];
+    const looseText =
+      "openpose realtime multi-person pose estimation cao 2019 ask you to cite";
+    const defaults = { ...DEFAULT_MATCH_OPTIONS };
+
+    it("matches exact words regardless of case", function () {
+      assert.isAbove(scoreQuery("kuo", ["Kuo 2019"], "kuo 2019", defaults), 0);
+    });
+
+    it("does not match letters scattered across words", function () {
+      assert.equal(scoreQuery("kuo", fields, looseText, defaults), -1);
+    });
+
+    it("allows minor typos for long-enough tokens", function () {
+      assert.isAbove(
+        scoreQuery(
+          "machien",
+          ["machine learning"],
+          "machine learning",
+          defaults,
+        ),
+        0,
+      );
+      assert.isAbove(
+        scoreQuery(
+          "lerning",
+          ["machine learning"],
+          "machine learning",
+          defaults,
+        ),
+        0,
+      );
+    });
+
+    it("requires exact short tokens when minTokenLength excludes them", function () {
+      const strictShort = { ...defaults, minTokenLength: 99 };
+      assert.equal(
+        scoreQuery("kou", ["kuo 2019"], "kuo 2019", strictShort),
+        -1,
+      );
+      assert.isAbove(
+        scoreQuery("kuo", ["kuo 2019"], "kuo 2019", strictShort),
+        0,
+      );
+    });
+
+    it("disables typo tolerance with typoDistance 0", function () {
+      const noTypo = { ...defaults, typoDistance: 0 };
+      assert.equal(
+        scoreQuery("machien", ["machine learning"], "machine learning", noTypo),
+        -1,
+      );
+    });
+
+    it("supports prefix matches", function () {
+      assert.isAbove(
+        scoreQuery("mach", ["machine learning"], "machine learning", defaults),
+        0,
+      );
+    });
+
+    it("requires all query tokens to match (AND semantics)", function () {
+      assert.isAbove(
+        scoreQuery(
+          "gait prince",
+          ["Gait Disorders", "Prince 1997"],
+          "gait disorders prince 1997",
+          defaults,
+        ),
+        0,
+      );
+      assert.equal(
+        scoreQuery(
+          "gait zzzzq",
+          ["Gait Disorders", "Prince 1997"],
+          "gait disorders prince 1997",
+          defaults,
+        ),
+        -1,
+      );
+    });
+
+    it("still matches loosely in loose mode", function () {
+      // 'donelan' traces across this concatenation but matches no single word.
+      const legacyFields = ["gait disorders", "prince plan", "1997"];
+      const legacyText = "gait disorders prince plan 1997";
+      assert.isAbove(
+        scoreQuery("donelan", legacyFields, legacyText, {
+          ...defaults,
+          mode: "loose",
+        }),
+        0,
+      );
+      assert.equal(
+        scoreQuery("donelan", legacyFields, legacyText, defaults),
+        -1,
+      );
     });
   });
 });
