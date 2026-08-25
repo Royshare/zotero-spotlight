@@ -64,18 +64,18 @@ also be disabled.
 
 ### 2. Search Syntax
 
-| Syntax                                                        | Purpose                                     | Example                   |
-| ------------------------------------------------------------- | ------------------------------------------- | ------------------------- |
-| Plain text                                                    | Fuzzy-search item metadata                  | `attention transformer`   |
-| `:pdf`, `:epub`, `:snapshot`, `:note`, `:item`, `:annotation` | Restrict result type                        | `:pdf neural`             |
-| `#tag`                                                        | Require a Zotero tag                        | `#methods regression`     |
-| `y:`                                                          | Match an exact year, range, or comparison   | `y:2020-2024`, `y:>=2022` |
-| `@query`                                                      | Search annotations only                     | `@limitations`            |
-| `=phrase`                                                     | Search indexed PDF text for an exact phrase | `=attention mechanism`    |
-| `:queue`                                                      | Show papers in the synced Reading Queue     | `:queue :pdf y:>=2024`    |
-| `:col query`                                                  | Search collections and group libraries only | `:col machine learning`   |
-| `>query`                                                      | Search commands                             | `>copy citation`          |
-| `>tabs`                                                       | List open Zotero tabs                       | `>tabs`                   |
+| Syntax                                                                 | Purpose                                     | Example                   |
+| ---------------------------------------------------------------------- | ------------------------------------------- | ------------------------- |
+| Plain text                                                             | Search item metadata word-by-word           | `attention transformer`   |
+| `:pdf`, `:epub`, `:snapshot`, `:note`, `:item`, `:annotation`, `:link` | Restrict result type                        | `:pdf neural`             |
+| `#tag`                                                                 | Require a Zotero tag                        | `#methods regression`     |
+| `y:`                                                                   | Match an exact year, range, or comparison   | `y:2020-2024`, `y:>=2022` |
+| `@query`                                                               | Search annotations only                     | `@limitations`            |
+| `=phrase`                                                              | Search indexed PDF text for an exact phrase | `=attention mechanism`    |
+| `:queue`                                                               | Show papers in the synced Reading Queue     | `:queue :pdf y:>=2024`    |
+| `:col query`                                                           | Search collections and group libraries only | `:col machine learning`   |
+| `>query`                                                               | Search commands                             | `>copy citation`          |
+| `>tabs`                                                                | List open Zotero tabs                       | `>tabs`                   |
 
 Normal item filters can be combined. A clickable hint bar exposes the available
 syntax, while inline autocomplete completes colon and year filters. Collection
@@ -122,6 +122,16 @@ results.
 - Sort result types into strict tiers (`1` = highest): any type ranked higher always appears above one ranked lower; unranked types fall back to match quality. Valid keys: `item`, `note`, `pdf`, `epub`, `snapshot`, `annotation`, `link`.
 - An empty library checklist means no restriction, so a fresh install never hides anything.
 - All settings save immediately; an Advanced drawer exposes the raw JSON (with a validity indicator) for hand-editing or sharing configurations.
+
+### 8. Result Badges, Precise Matching, and Link Results
+
+- Every result row carries a compact badge identifying what it is: `ITEM`, `NOTE`, `PDF`, `EPUB`, `SNAPSHOT`, `LINK`, or `ANNO` (annotation), plus `GROUP` for content in shared group libraries and `QUEUE` for papers in the Reading Queue.
+- Queries match **whole words inside individual fields** (title, authors, tags, abstract) instead of fuzzy letter sequences scattered across a record, eliminating phantom matches that share no visible text.
+- Minor typos are still tolerated: words of four or more characters match with an edit distance of one (`machien` → _machine_), while short queries like author initials must be exact.
+- All query words must be found (**AND** semantics), making multi-word searches precise.
+- Tune all of this in Preferences → Spotlight → **Word Matching**: switch between precise field matching and the legacy loose fuzzy mode, set how many edits count as a typo, and choose the shortest word length typo tolerance applies to. The Advanced drawer exposes the raw JSON (`"matching": {"mode", "typoDistance", "minTokenLength"}`) for hand-editing and stays in sync with the GUI.
+- Web links are their own `link` result category with a `LINK` badge: standalone links match on their own title/URL/tags, links attached to a paper also inherit its metadata so author names find them, and both can be demoted via tiers or filtered with `:link`.
+- Only attachments backed by locally stored content (PDFs, EPUBs, snapshots) represent their parent item in results; clicking through always lands on something meaningful.
 
 ## Contributing
 

@@ -19,6 +19,12 @@
 
 export const LIBRARY_BOOST_STEP = 8;
 
+import {
+  DEFAULT_MATCH_OPTIONS,
+  type MatchOptions,
+  MATCH_MODES,
+} from "./matching";
+
 export const PRIORITIZED_RESULT_TYPES = [
   "item",
   "note",
@@ -38,10 +44,16 @@ export interface PriorityConfig {
   libraries: number[];
   includeUnlisted: boolean;
   resultTypes: ResultTypeRanks;
+  matching: MatchOptions;
 }
 
 export function emptyPriorityConfig(): PriorityConfig {
-  return { libraries: [], includeUnlisted: false, resultTypes: {} };
+  return {
+    libraries: [],
+    includeUnlisted: false,
+    resultTypes: {},
+    matching: { ...DEFAULT_MATCH_OPTIONS },
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -86,7 +98,43 @@ export function parsePriorityConfig(
     libraries,
     includeUnlisted: parsed.includeUnlisted === true,
     resultTypes: parseResultTypeRanks(parsed.resultTypes),
+    matching: parseMatching(parsed.matching),
   };
+}
+
+function clampInt(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Math.round(value)));
+}
+
+function parseMatching(raw: unknown): MatchOptions {
+  const options: MatchOptions = { ...DEFAULT_MATCH_OPTIONS };
+  if (!isRecord(raw)) {
+    return options;
+  }
+  if (
+    typeof raw.mode === "string" &&
+    (MATCH_MODES as readonly string[]).includes(raw.mode)
+  ) {
+    options.mode = raw.mode as MatchOptions["mode"];
+  }
+  if (
+    typeof raw.typoDistance === "number" &&
+    Number.isFinite(raw.typoDistance)
+  ) {
+    options.typoDistance = clampInt(raw.typoDistance, 0, 3);
+  }
+  if (
+    typeof raw.minTokenLength === "number" &&
+    Number.isFinite(raw.minTokenLength)
+  ) {
+    options.minTokenLength = clampInt(raw.minTokenLength, 1, 32);
+  }
+  return options;
+}
+
+/** The query-matching options in effect for this config. */
+export function getMatchOptions(config: PriorityConfig): MatchOptions {
+  return config.matching ?? { ...DEFAULT_MATCH_OPTIONS };
 }
 
 function parseResultTypeRanks(raw: unknown): ResultTypeRanks {
@@ -147,6 +195,7 @@ export function buildPriorityTemplate(
     libraries: libraries.map((library) => library.libraryID),
     includeUnlisted: false,
     resultTypes: {},
+    matching: { ...DEFAULT_MATCH_OPTIONS },
   });
 }
 

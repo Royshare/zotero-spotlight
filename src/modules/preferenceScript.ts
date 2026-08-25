@@ -9,9 +9,11 @@ import {
   type PriorityConfig,
   type PrioritizedResultType,
   emptyPriorityConfig,
+  getMatchOptions,
   parsePriorityConfig,
   serializePriorityConfig,
 } from "./spotlight/collectionPriority";
+import { DEFAULT_MATCH_OPTIONS, type MatchOptions } from "./spotlight/matching";
 
 export async function registerPrefsScripts(_window: Window) {
   if (!addon.data.prefs) {
@@ -317,10 +319,73 @@ function renderResultTypeTiers(doc: Document, config: PriorityConfig): void {
   }
 }
 
+function renderMatchingControls(doc: Document): void {
+  const options = getMatchOptions(getPriorityConfigFromPref());
+  const modeSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-matching-mode`,
+  ) as HTMLSelectElement | null;
+  const typoSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-matching-typo`,
+  ) as HTMLSelectElement | null;
+  const minLenInput = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-matching-minlen`,
+  ) as HTMLInputElement | null;
+  if (modeSelect) {
+    modeSelect.value = options.mode;
+  }
+  const loose = options.mode === "loose";
+  for (const control of [typoSelect, minLenInput]) {
+    if (control) {
+      control.disabled = loose;
+    }
+  }
+  if (typoSelect) {
+    typoSelect.value = String(options.typoDistance);
+  }
+  if (minLenInput) {
+    minLenInput.value = String(options.minTokenLength);
+  }
+}
+
+function bindMatchingControls(doc: Document): void {
+  const saveMatching = (patch: Partial<MatchOptions>) => {
+    const next = getPriorityConfigFromPref();
+    next.matching = { ...getMatchOptions(next), ...patch };
+    savePriorityConfig(doc, next);
+    renderMatchingControls(doc);
+  };
+  const modeSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-matching-mode`,
+  ) as HTMLSelectElement | null;
+  modeSelect?.addEventListener("change", () => {
+    saveMatching({
+      mode: modeSelect.value as MatchOptions["mode"],
+    });
+  });
+  const typoSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-matching-typo`,
+  ) as HTMLSelectElement | null;
+  typoSelect?.addEventListener("change", () => {
+    saveMatching({ typoDistance: Number(typoSelect.value) });
+  });
+  const minLenInput = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-matching-minlen`,
+  ) as HTMLInputElement | null;
+  minLenInput?.addEventListener("change", () => {
+    const raw = Number(minLenInput.value);
+    const clamped = Number.isFinite(raw)
+      ? Math.min(32, Math.max(1, Math.round(raw)))
+      : DEFAULT_MATCH_OPTIONS.minTokenLength;
+    minLenInput.value = String(clamped);
+    saveMatching({ minTokenLength: clamped });
+  });
+}
+
 function renderPriorityControls(doc: Document): void {
   const current = getPriorityConfigFromPref();
   renderPriorityLibraries(doc, current);
   renderResultTypeTiers(doc, current);
+  renderMatchingControls(doc);
   const unlistedCheckbox = priorityGuiQuery(
     doc,
     "priority-unlisted",
@@ -331,6 +396,7 @@ function renderPriorityControls(doc: Document): void {
 }
 
 function bindPrioritiesGui(doc: Document): void {
+  bindMatchingControls(doc);
   const unlistedCheckbox = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-priority-unlisted`,
   ) as HTMLInputElement | null;

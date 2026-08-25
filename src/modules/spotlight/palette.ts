@@ -3968,6 +3968,9 @@ export class PaletteUI {
     if (type === "snapshot") {
       return "SNAPSHOT";
     }
+    if (type === "link") {
+      return "LINK";
+    }
     if (type === "annotation") {
       return "ANNO";
     }
@@ -3988,6 +3991,9 @@ export class PaletteUI {
     }
     if (type === "snapshot") {
       return "Open Snapshot";
+    }
+    if (type === "link") {
+      return "Open Link";
     }
     return "Open";
   }
@@ -4060,11 +4066,6 @@ export class PaletteUI {
     const filterHints: Array<{ label: string; insert: string; title: string }> =
       [
         {
-          label: ":queue",
-          insert: ":queue ",
-          title: "Show papers saved to your Reading Queue",
-        },
-        {
           label: ":pdf",
           insert: ":pdf ",
           title: "Filter to PDF attachments only\nExample: :pdf Einstein",
@@ -4073,6 +4074,11 @@ export class PaletteUI {
           label: ":note",
           insert: ":note ",
           title: "Filter to notes only\nExample: :note meeting",
+        },
+        {
+          label: ":link",
+          insert: ":link ",
+          title: "Filter to web links only\nExample: :link pubmed",
         },
         {
           label: ":col",
@@ -4200,6 +4206,7 @@ export class PaletteUI {
       "note",
       "item",
       "annotation",
+      "link",
       "col",
     ];
     const yearValues = ["2024", "2023", "2020-2024", ">=2020", "<=2024"];

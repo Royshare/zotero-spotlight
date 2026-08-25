@@ -211,6 +211,61 @@
         overflow-y: auto;
       "
     ></html:div>
+    <label
+      class="zotero-spotlight-section-label"
+      data-l10n-id="pref-matching-label"
+    ></label>
+    <hbox align="center" pack="start">
+      <html:label
+        for="zotero-prefpane-__addonRef__-matching-mode"
+        data-l10n-id="pref-matching-mode"
+        style="min-width: 140px"
+      ></html:label>
+      <html:select
+        id="zotero-prefpane-__addonRef__-matching-mode"
+        class="zotero-spotlight-shortcut-select"
+      >
+        <html:option
+          value="field"
+          data-l10n-id="pref-matching-mode-field"
+        ></html:option>
+        <html:option
+          value="loose"
+          data-l10n-id="pref-matching-mode-loose"
+        ></html:option>
+      </html:select>
+    </hbox>
+    <hbox align="center" pack="start">
+      <html:label
+        for="zotero-prefpane-__addonRef__-matching-typo"
+        data-l10n-id="pref-matching-typo"
+        style="min-width: 140px"
+      ></html:label>
+      <html:select
+        id="zotero-prefpane-__addonRef__-matching-typo"
+        class="zotero-spotlight-shortcut-select"
+      >
+        <html:option value="0">Off (exact words)</html:option>
+        <html:option value="1">1 edit</html:option>
+        <html:option value="2">2 edits</html:option>
+        <html:option value="3">3 edits</html:option>
+      </html:select>
+    </hbox>
+    <hbox align="center" pack="start">
+      <html:label
+        for="zotero-prefpane-__addonRef__-matching-minlen"
+        data-l10n-id="pref-matching-minlen"
+        style="min-width: 140px"
+      ></html:label>
+      <html:input
+        type="number"
+        id="zotero-prefpane-__addonRef__-matching-minlen"
+        min="1"
+        max="32"
+        step="1"
+        style="min-width: 60px"
+      ></html:input>
+    </hbox>
     <html:details>
       <html:summary data-l10n-id="pref-priority-advanced"></html:summary>
       <html:textarea
