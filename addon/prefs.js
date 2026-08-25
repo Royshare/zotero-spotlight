@@ -10,3 +10,4 @@ pref("altEnterAction", "open");
 pref("modifierShiftEnterAction", "reveal");
 pref("modifierAltEnterAction", "reveal");
 pref("resultsLimit", 20);
+pref("collectionPriorities", "[]");
