@@ -2814,9 +2814,15 @@ export class PaletteUI {
       const title = this.createElement("div", "spotlight-action-title");
       title.textContent = action.label;
       button.appendChild(title);
+      button.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+      });
       button.addEventListener("mouseenter", () => {
+        if (this.selectedActionIndex === index) {
+          return;
+        }
         this.selectedActionIndex = index;
-        this.renderPreview();
+        this.updateActionSelectionState();
         this.focusActionInput();
       });
       button.addEventListener("click", () => {
@@ -2826,6 +2832,19 @@ export class PaletteUI {
     });
     panel.appendChild(list);
     return panel;
+  }
+
+  private updateActionSelectionState(): void {
+    const buttons = Array.from(
+      this.previewPanel.querySelectorAll(".spotlight-action-item"),
+    ) as HTMLElement[];
+    buttons.forEach((button, index) => {
+      button.classList.toggle("is-selected", index === this.selectedActionIndex);
+    });
+    const selected = buttons[this.selectedActionIndex];
+    if (selected && "scrollIntoView" in selected) {
+      selected.scrollIntoView({ block: "nearest" });
+    }
   }
 
   private focusActionInput(): void {
