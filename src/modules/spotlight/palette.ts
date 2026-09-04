@@ -2783,14 +2783,18 @@ export class PaletteUI {
     input.addEventListener("input", () => {
       this.actionQuery = input.value;
       this.selectedActionIndex = 0;
-      this.renderPreview();
-      this.focusActionInput();
+      this.updateActionList();
     });
     search.appendChild(prefix);
     search.appendChild(input);
     panel.appendChild(search);
     this.actionInput = input;
 
+    panel.appendChild(this.buildActionList(actions));
+    return panel;
+  }
+
+  private buildActionList(actions: PanelAction[]): HTMLElement {
     const list = this.createElement("div", "spotlight-action-list");
     if (!actions.length) {
       const empty = this.createElement("div", "spotlight-action-empty");
@@ -2830,8 +2834,17 @@ export class PaletteUI {
       });
       list.appendChild(button);
     });
-    panel.appendChild(list);
-    return panel;
+    return list;
+  }
+
+  private updateActionList(): void {
+    const list = this.previewPanel.querySelector(
+      ".spotlight-action-list",
+    ) as HTMLElement | null;
+    if (!list) {
+      return;
+    }
+    list.replaceWith(this.buildActionList(this.getFilteredPanelActions()));
   }
 
   private updateActionSelectionState(): void {
@@ -2839,7 +2852,10 @@ export class PaletteUI {
       this.previewPanel.querySelectorAll(".spotlight-action-item"),
     ) as HTMLElement[];
     buttons.forEach((button, index) => {
-      button.classList.toggle("is-selected", index === this.selectedActionIndex);
+      button.classList.toggle(
+        "is-selected",
+        index === this.selectedActionIndex,
+      );
     });
     const selected = buttons[this.selectedActionIndex];
     if (selected && "scrollIntoView" in selected) {
