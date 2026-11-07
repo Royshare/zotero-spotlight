@@ -840,7 +840,7 @@ export class PaletteUI {
       }
     }
     if (!openedWithFileHandlers) {
-      await (Zotero as any).Reader.open(attachmentID, {
+      await (Zotero as any).Reader.open(attachmentID, undefined, {
         openInWindow: alternate === "alternate",
         allowDuplicate: alternate === "alternate",
       });

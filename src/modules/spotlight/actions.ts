@@ -72,7 +72,7 @@ export class ActionHandler {
     }
     if (typeof (Zotero as any).Reader?.open === "function") {
       try {
-        await (Zotero as any).Reader.open(attachmentID, {
+        await (Zotero as any).Reader.open(attachmentID, undefined, {
           openInWindow: alternate,
           allowDuplicate: alternate,
         });

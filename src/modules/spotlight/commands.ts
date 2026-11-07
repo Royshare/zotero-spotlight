@@ -461,7 +461,7 @@ export class CommandRegistry {
             attachmentType === "pdf" &&
             typeof (Zotero as any).Reader?.open === "function"
           ) {
-            await (Zotero as any).Reader.open(attachmentID, {
+            await (Zotero as any).Reader.open(attachmentID, undefined, {
               openInWindow: false,
             });
             return;
