@@ -1,7 +1,10 @@
 import { config } from "../../package.json";
 import { getPref, setPref } from "../utils/prefs";
 import {
+  assignGuideShortcut,
   assignSpotlightShortcut,
+  reconcileGuideShortcut,
+  resolveGuideShortcut,
   resolveShortcutConfig,
 } from "./spotlight/shortcuts";
 
@@ -30,10 +33,14 @@ function syncPrefUI() {
   const commandShortcutSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-command-shortcut`,
   ) as HTMLSelectElement | null;
-  if (searchShortcutSelect && commandShortcutSelect) {
+  const guideShortcutSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-guide-shortcut`,
+  ) as HTMLSelectElement | null;
+  if (searchShortcutSelect && commandShortcutSelect && guideShortcutSelect) {
     const shortcuts = getConfiguredShortcuts();
     searchShortcutSelect.value = shortcuts.search;
     commandShortcutSelect.value = shortcuts.command;
+    guideShortcutSelect.value = getConfiguredGuideShortcut();
   }
   const limitInput = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-results-limit`,
@@ -92,7 +99,14 @@ function bindPrefEvents() {
   const commandShortcutSelect = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-command-shortcut`,
   ) as HTMLSelectElement | null;
-  bindShortcutEvents(searchShortcutSelect, commandShortcutSelect);
+  const guideShortcutSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-guide-shortcut`,
+  ) as HTMLSelectElement | null;
+  bindShortcutEvents(
+    searchShortcutSelect,
+    commandShortcutSelect,
+    guideShortcutSelect,
+  );
   const limitInput = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-results-limit`,
   ) as HTMLInputElement | null;
@@ -143,6 +157,7 @@ function bindPrefEvents() {
     setPref("commandShortcutEnabled", true);
     setPref("searchShortcut", "mod-p");
     setPref("commandShortcut", "mod-shift-p");
+    setPref("guideShortcut", "mod-j");
     setPref("resultsLimit", 20);
     (setPref as any)("windowHeight", 400);
     (setPref as any)("windowWidth", 560);
@@ -177,21 +192,30 @@ function getConfiguredShortcuts() {
   );
 }
 
+function getConfiguredGuideShortcut() {
+  return resolveGuideShortcut(getPref("guideShortcut"));
+}
+
 function bindShortcutEvents(
   searchSelect: HTMLSelectElement | null,
   commandSelect: HTMLSelectElement | null,
+  guideSelect: HTMLSelectElement | null,
 ) {
-  if (!searchSelect || !commandSelect) {
+  if (!searchSelect || !commandSelect || !guideSelect) {
     return;
   }
   let configured = getConfiguredShortcuts();
+  let guide = getConfiguredGuideShortcut();
 
   const applyShortcuts = (next: typeof configured) => {
+    guide = reconcileGuideShortcut(next, configured, guide);
     configured = next;
     searchSelect.value = next.search;
     commandSelect.value = next.command;
+    guideSelect.value = guide;
     setPref("searchShortcut", next.search);
     setPref("commandShortcut", next.command);
+    setPref("guideShortcut", guide);
   };
 
   searchSelect.addEventListener("change", () => {
@@ -204,5 +228,17 @@ function bindShortcutEvents(
     applyShortcuts(
       assignSpotlightShortcut(configured, "command", commandSelect.value),
     );
+  });
+
+  guideSelect.addEventListener("change", () => {
+    const next = assignGuideShortcut(configured, guide, guideSelect.value);
+    configured = next.config;
+    guide = next.guide;
+    searchSelect.value = configured.search;
+    commandSelect.value = configured.command;
+    guideSelect.value = guide;
+    setPref("searchShortcut", configured.search);
+    setPref("commandShortcut", configured.command);
+    setPref("guideShortcut", guide);
   });
 }

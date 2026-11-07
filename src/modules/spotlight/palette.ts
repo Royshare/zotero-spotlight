@@ -29,6 +29,7 @@ import {
 import { getPref } from "../../utils/prefs";
 import {
   formatSpotlightShortcut,
+  resolveGuideShortcut,
   resolveShortcutConfig,
   type SpotlightLaunchMode,
 } from "./shortcuts";
@@ -1128,9 +1129,11 @@ export class PaletteUI {
             : []),
           {
             label: "Open this shortcuts page",
-            shortcut: `${getModifierKeyLabel()}+/`,
+            shortcut: this.getGuideShortcutLabel(),
             detail:
-              "Uses the existing preview surface as a quick-reference page.",
+              this.getGuideShortcutLabel() === "Off"
+                ? "Open the shortcut guide from the keyboard button in the filter hints."
+                : "Uses the existing preview surface as a quick-reference page.",
           },
           {
             label: "Open contextual actions",
@@ -1440,6 +1443,13 @@ export class PaletteUI {
   private getSpotlightShortcutLabel(mode: SpotlightLaunchMode): string {
     return formatSpotlightShortcut(
       this.getConfiguredShortcuts()[mode],
+      getModifierKeyLabel(),
+    );
+  }
+
+  private getGuideShortcutLabel(): string {
+    return formatSpotlightShortcut(
+      resolveGuideShortcut(getPref("guideShortcut")),
       getModifierKeyLabel(),
     );
   }
@@ -4168,7 +4178,11 @@ export class PaletteUI {
       "spotlight-filter-hint-badge spotlight-shortcut-guide-btn",
     ) as HTMLButtonElement;
     shortcutBtn.textContent = "⌨";
-    shortcutBtn.title = `Keyboard shortcuts (${getModifierKeyLabel()}+/)`;
+    const guideShortcut = this.getGuideShortcutLabel();
+    shortcutBtn.title =
+      guideShortcut === "Off"
+        ? "Keyboard shortcuts"
+        : `Keyboard shortcuts (${guideShortcut})`;
     shortcutBtn.style.marginLeft = "auto";
     shortcutBtn.addEventListener("mousedown", (e) => {
       e.preventDefault();

@@ -5,6 +5,7 @@ import { isWindowAlive } from "../../utils/window";
 import { getPref } from "../../utils/prefs";
 import {
   getShortcutFromEvent,
+  resolveGuideShortcut,
   resolveShortcutConfig,
   resolveSpotlightShortcut,
   type SpotlightLaunchMode,
@@ -183,13 +184,9 @@ function getShortcutAction(event: KeyboardEvent): SpotlightLaunchMode | null {
 }
 
 function isShortcutGuideEvent(event: KeyboardEvent): boolean {
-  if (event.altKey || event.shiftKey) {
-    return false;
-  }
-  const modifier = Zotero.isMac ? event.metaKey : event.ctrlKey;
-  if (!modifier) {
-    return false;
-  }
-  const key = event.key?.toLowerCase();
-  return key === "/" || event.code === "Slash";
+  const pressedShortcut = getShortcutFromEvent(event, Zotero.isMac);
+  return (
+    pressedShortcut !== null &&
+    pressedShortcut === resolveGuideShortcut(getPref("guideShortcut"))
+  );
 }
