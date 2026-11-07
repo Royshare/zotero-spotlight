@@ -26,6 +26,15 @@ Spotlight is different:
 
 > **Zotero Spotlight started as a personal tool. I wanted a fast, keyboard-first way to jump between papers anywhere inside Zotero, but couldn’t find an existing plugin that offered this experience. I built it for my own workflow and decided to open-source it so others can use it, adapt it, or help improve it.**
 
+## Installation
+
+1. Download the latest `.xpi` file from the [Zotero Spotlight releases](https://github.com/Royshare/zotero-spotlight/releases/latest). Download the `.xpi` asset, not the source code archive.
+2. In Zotero, open **Tools → Plugins**.
+3. Drag the downloaded `.xpi` file into the Plugins window and confirm the installation.
+4. Restart Zotero if prompted. Zotero Spotlight should appear in the Plugins list.
+
+See [Zotero's plugin installation guide](https://www.zotero.org/support/plugins) for more information.
+
 ## Quick Start
 
 Spotlight works from the main Zotero window, the reader, and the note editor.
