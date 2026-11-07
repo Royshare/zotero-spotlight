@@ -17,8 +17,17 @@ pref-shortcut-mod-o = { PLATFORM() ->
         [macos] ⌘+O
        *[other] Ctrl+O
     }
+pref-shortcut-mod-slash = { PLATFORM() ->
+        [macos] ⌘+/
+       *[other] Ctrl+/
+    }
+pref-shortcut-mod-shift-slash = { PLATFORM() ->
+        [macos] ⌘+Shift+/
+       *[other] Ctrl+Shift+/
+    }
+pref-shortcut-guide-label = Open shortcut guide
 pref-shortcut-off = Off
-pref-shortcut-conflict-note = Choosing a shortcut already in use swaps the two assignments.
+pref-shortcut-conflict-note = Choosing a shortcut already in use swaps the assignments.
 pref-results-section = Results
 pref-results-limit = Results limit
 

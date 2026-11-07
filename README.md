@@ -40,11 +40,11 @@ See [Zotero's plugin installation guide](https://www.zotero.org/support/plugins)
 Spotlight works from the main Zotero window, the reader, and the note editor.
 The default shortcuts are:
 
-| Action                  | macOS         | Windows / Linux |
-| ----------------------- | ------------- | --------------- |
-| Open library search     | `Cmd+P`       | `Ctrl+P`        |
-| Open command mode       | `Cmd+Shift+P` | `Ctrl+Shift+P`  |
-| Open the shortcut guide | `Cmd+/`       | `Ctrl+/`        |
+| Action                  | macOS             | Windows / Linux    |
+| ----------------------- | ----------------- | ------------------ |
+| Open library search     | `Cmd+P`           | `Ctrl+P`           |
+| Open command mode       | `Cmd+Shift+P`     | `Ctrl+Shift+P`     |
+| Open the shortcut guide | `Cmd+/` (default) | `Ctrl+/` (default) |
 
 Inside Spotlight:
 
@@ -55,9 +55,11 @@ Inside Spotlight:
 - Press `Shift+Enter` for an item's alternate open behavior, such as opening a reader or note in a separate window.
 - Press `Escape` to return from actions or close Spotlight.
 
-Search and command shortcuts can be assigned independently in Preferences to
-`Cmd/Ctrl+P`, `Cmd/Ctrl+Shift+P`, `Cmd/Ctrl+K`, or `Cmd/Ctrl+O`. Command mode can
-also be disabled.
+Search, command, and shortcut-guide shortcuts can be configured independently
+in Preferences. Available shortcuts include `Cmd/Ctrl+/`, `Cmd/Ctrl+Shift+/`,
+`Cmd/Ctrl+P`, `Cmd/Ctrl+Shift+P`, `Cmd/Ctrl+K`, and `Cmd/Ctrl+O`. The shortcut
+guide and command mode can be turned off. Choosing a shortcut already assigned
+to another Spotlight action swaps the assignments.
 
 ## Features
 
@@ -117,11 +119,11 @@ results.
 
 ### 6. Preferences and Shortcut Reference
 
-- Configure independent search and command shortcuts with automatic conflict swapping.
+- Configure independent search, command, and shortcut-guide shortcuts with automatic conflict swapping.
 - Set the result limit and Spotlight window width and height.
 - Enable or disable annotation search, restoration of the previous query, and the filter hint bar.
 - Reset all Spotlight preferences to their defaults in one click.
-- Open the built-in shortcut guide with `Cmd/Ctrl+/` to see Spotlight controls, frequent Zotero shortcuts, available command shortcuts, and shortcuts contributed by other plugins or the active window.
+- Open the built-in shortcut guide with its configured shortcut to see Spotlight controls, frequent Zotero shortcuts, available command shortcuts, and shortcuts contributed by other plugins or the active window.
 
 ## Contributing
 

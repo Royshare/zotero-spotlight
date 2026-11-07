@@ -1,18 +1,31 @@
 export type SpotlightLaunchMode = "search" | "command";
 export type SpotlightShortcut =
-  "mod-p" | "mod-shift-p" | "mod-k" | "mod-o" | "off";
+  | "mod-p"
+  | "mod-shift-p"
+  | "mod-k"
+  | "mod-o"
+  | "mod-slash"
+  | "mod-shift-slash"
+  | "off";
+export type ActiveSpotlightShortcut = Exclude<SpotlightShortcut, "off">;
 
 export type SpotlightShortcutConfig = {
   search: Exclude<SpotlightShortcut, "off">;
   command: SpotlightShortcut;
 };
 
-export const SPOTLIGHT_SHORTCUT_OPTIONS: SpotlightShortcut[] = [
+export const SPOTLIGHT_SHORTCUT_OPTIONS: ActiveSpotlightShortcut[] = [
   "mod-p",
   "mod-shift-p",
   "mod-k",
   "mod-o",
+  "mod-slash",
+  "mod-shift-slash",
 ];
+
+export function resolveGuideShortcut(value: unknown): SpotlightShortcut {
+  return isShortcut(value) ? value : "mod-slash";
+}
 
 export function resolveShortcutConfig(
   searchValue: unknown,
@@ -47,6 +60,9 @@ export function getShortcutFromEvent(
   }
   const key = event.key?.toLowerCase();
   const code = event.code;
+  if (key === "/" || key === "?" || code === "Slash") {
+    return event.shiftKey ? "mod-shift-slash" : "mod-slash";
+  }
   if (key === "p" || code === "KeyP") {
     return event.shiftKey ? "mod-shift-p" : "mod-p";
   }
@@ -101,6 +117,56 @@ export function assignSpotlightShortcut(
   return { search: replacementSearch, command: shortcut };
 }
 
+export function assignGuideShortcut(
+  config: SpotlightShortcutConfig,
+  currentGuide: SpotlightShortcut,
+  shortcut: unknown,
+): { config: SpotlightShortcutConfig; guide: SpotlightShortcut } {
+  if (!isShortcut(shortcut)) {
+    return { config, guide: currentGuide };
+  }
+
+  if (shortcut === "off") {
+    return { config, guide: "off" };
+  }
+
+  let nextConfig = config;
+  if (shortcut === config.search) {
+    const replacement =
+      currentGuide !== "off" && currentGuide !== config.command
+        ? currentGuide
+        : findAvailableShortcut([config.search, config.command]);
+    nextConfig = assignSpotlightShortcut(config, "search", replacement);
+  } else if (shortcut === config.command) {
+    nextConfig = assignSpotlightShortcut(config, "command", currentGuide);
+  }
+  return { config: nextConfig, guide: shortcut };
+}
+
+export function reconcileGuideShortcut(
+  config: SpotlightShortcutConfig,
+  previousConfig: SpotlightShortcutConfig,
+  guide: SpotlightShortcut,
+): SpotlightShortcut {
+  if (
+    guide === "off" ||
+    (guide !== config.search && guide !== config.command)
+  ) {
+    return guide;
+  }
+
+  const displaced =
+    config.search === guide ? previousConfig.search : previousConfig.command;
+  if (
+    displaced !== "off" &&
+    displaced !== config.search &&
+    displaced !== config.command
+  ) {
+    return displaced;
+  }
+  return findAvailableShortcut([config.search, config.command]);
+}
+
 export function formatSpotlightShortcut(
   shortcut: SpotlightShortcut,
   modifier: string,
@@ -114,6 +180,10 @@ export function formatSpotlightShortcut(
       return `${modifier}+K`;
     case "mod-o":
       return `${modifier}+O`;
+    case "mod-slash":
+      return `${modifier}+/`;
+    case "mod-shift-slash":
+      return `${modifier}+Shift+/`;
     default:
       return "Off";
   }
@@ -121,8 +191,8 @@ export function formatSpotlightShortcut(
 
 export function isActiveShortcut(
   value: unknown,
-): value is Exclude<SpotlightShortcut, "off"> {
-  return SPOTLIGHT_SHORTCUT_OPTIONS.includes(value as SpotlightShortcut);
+): value is ActiveSpotlightShortcut {
+  return SPOTLIGHT_SHORTCUT_OPTIONS.includes(value as ActiveSpotlightShortcut);
 }
 
 export function isShortcut(value: unknown): value is SpotlightShortcut {
@@ -133,4 +203,14 @@ function getAlternativeShortcut(
   shortcut: SpotlightShortcut,
 ): "mod-p" | "mod-shift-p" {
   return shortcut === "mod-p" ? "mod-shift-p" : "mod-p";
+}
+
+function findAvailableShortcut(
+  excluded: readonly SpotlightShortcut[],
+): ActiveSpotlightShortcut {
+  return (
+    SPOTLIGHT_SHORTCUT_OPTIONS.find(
+      (shortcut) => !excluded.includes(shortcut),
+    ) || "mod-p"
+  );
 }

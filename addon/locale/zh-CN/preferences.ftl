@@ -17,8 +17,17 @@ pref-shortcut-mod-o = { PLATFORM() ->
         [macos] ⌘+O
        *[other] Ctrl+O
     }
+pref-shortcut-mod-slash = { PLATFORM() ->
+        [macos] ⌘+/
+       *[other] Ctrl+/
+    }
+pref-shortcut-mod-shift-slash = { PLATFORM() ->
+        [macos] ⌘+Shift+/
+       *[other] Ctrl+Shift+/
+    }
+pref-shortcut-guide-label = 打开快捷键指南
 pref-shortcut-off = 关闭
-pref-shortcut-conflict-note = 选择已在使用的快捷键时，两个操作的快捷键会自动交换。
+pref-shortcut-conflict-note = 选择已在使用的快捷键时，快捷键分配会自动交换。
 pref-results-section = 结果限制
 pref-results-limit = 结果数量上限
 
