@@ -157,7 +157,7 @@ function bindPrefEvents() {
     setPref("commandShortcutEnabled", true);
     setPref("searchShortcut", "mod-p");
     setPref("commandShortcut", "mod-shift-p");
-    setPref("guideShortcut", "mod-slash");
+    setPref("guideShortcut", "mod-j");
     setPref("resultsLimit", 20);
     (setPref as any)("windowHeight", 400);
     (setPref as any)("windowWidth", 560);

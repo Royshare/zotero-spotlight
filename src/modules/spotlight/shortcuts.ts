@@ -1,12 +1,6 @@
 export type SpotlightLaunchMode = "search" | "command";
 export type SpotlightShortcut =
-  | "mod-p"
-  | "mod-shift-p"
-  | "mod-k"
-  | "mod-o"
-  | "mod-slash"
-  | "mod-shift-slash"
-  | "off";
+  "mod-p" | "mod-shift-p" | "mod-k" | "mod-o" | "mod-j" | "mod-slash" | "off";
 export type ActiveSpotlightShortcut = Exclude<SpotlightShortcut, "off">;
 
 export type SpotlightShortcutConfig = {
@@ -19,12 +13,12 @@ export const SPOTLIGHT_SHORTCUT_OPTIONS: ActiveSpotlightShortcut[] = [
   "mod-shift-p",
   "mod-k",
   "mod-o",
+  "mod-j",
   "mod-slash",
-  "mod-shift-slash",
 ];
 
 export function resolveGuideShortcut(value: unknown): SpotlightShortcut {
-  return isShortcut(value) ? value : "mod-slash";
+  return isShortcut(value) ? value : "mod-j";
 }
 
 export function resolveShortcutConfig(
@@ -61,7 +55,7 @@ export function getShortcutFromEvent(
   const key = event.key?.toLowerCase();
   const code = event.code;
   if (key === "/" || key === "?" || code === "Slash") {
-    return event.shiftKey ? "mod-shift-slash" : "mod-slash";
+    return event.shiftKey ? null : "mod-slash";
   }
   if (key === "p" || code === "KeyP") {
     return event.shiftKey ? "mod-shift-p" : "mod-p";
@@ -71,6 +65,9 @@ export function getShortcutFromEvent(
   }
   if (key === "k" || code === "KeyK") {
     return "mod-k";
+  }
+  if (key === "j" || code === "KeyJ") {
+    return "mod-j";
   }
   if (key === "o" || code === "KeyO") {
     return "mod-o";
@@ -180,10 +177,10 @@ export function formatSpotlightShortcut(
       return `${modifier}+K`;
     case "mod-o":
       return `${modifier}+O`;
+    case "mod-j":
+      return `${modifier}+J`;
     case "mod-slash":
       return `${modifier}+/`;
-    case "mod-shift-slash":
-      return `${modifier}+Shift+/`;
     default:
       return "Off";
   }

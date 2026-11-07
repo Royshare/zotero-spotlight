@@ -17,13 +17,13 @@ pref-shortcut-mod-o = { PLATFORM() ->
         [macos] ⌘+O
        *[other] Ctrl+O
     }
+pref-shortcut-mod-j = { PLATFORM() ->
+        [macos] ⌘+J
+       *[other] Ctrl+J
+    }
 pref-shortcut-mod-slash = { PLATFORM() ->
         [macos] ⌘+/
        *[other] Ctrl+/
-    }
-pref-shortcut-mod-shift-slash = { PLATFORM() ->
-        [macos] ⌘+Shift+/
-       *[other] Ctrl+Shift+/
     }
 pref-shortcut-guide-label = Open shortcut guide
 pref-shortcut-off = Off

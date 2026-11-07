@@ -44,7 +44,7 @@ The default shortcuts are:
 | ----------------------- | ----------------- | ------------------ |
 | Open library search     | `Cmd+P`           | `Ctrl+P`           |
 | Open command mode       | `Cmd+Shift+P`     | `Ctrl+Shift+P`     |
-| Open the shortcut guide | `Cmd+/` (default) | `Ctrl+/` (default) |
+| Open the shortcut guide | `Cmd+J` (default) | `Ctrl+J` (default) |
 
 Inside Spotlight:
 
@@ -56,8 +56,8 @@ Inside Spotlight:
 - Press `Escape` to return from actions or close Spotlight.
 
 Search, command, and shortcut-guide shortcuts can be configured independently
-in Preferences. Available shortcuts include `Cmd/Ctrl+/`, `Cmd/Ctrl+Shift+/`,
-`Cmd/Ctrl+P`, `Cmd/Ctrl+Shift+P`, `Cmd/Ctrl+K`, and `Cmd/Ctrl+O`. The shortcut
+in Preferences. Available shortcuts include `Cmd/Ctrl+/`, `Cmd/Ctrl+P`,
+`Cmd/Ctrl+Shift+P`, `Cmd/Ctrl+K`, `Cmd/Ctrl+O`, and `Cmd/Ctrl+J`. The shortcut
 guide and command mode can be turned off. Choosing a shortcut already assigned
 to another Spotlight action swaps the assignments.
 
