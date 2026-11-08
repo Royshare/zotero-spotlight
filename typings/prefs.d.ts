@@ -13,6 +13,7 @@ declare namespace _ZoteroTypes {
       "commandShortcut": string;
       "guideShortcut": string;
       "resultsLimit": number;
+      "collectionPriorities": string;
     };
   }
 }

@@ -106,7 +106,7 @@ export function searchCollections(
     .slice(0, limit);
 }
 
-function getAncestorNames(collection: Zotero.Collection): string[] {
+export function getAncestorNames(collection: Zotero.Collection): string[] {
   const names: string[] = [];
   const visited = new Set<number>([collection.id]);
   let parentID = collection.parentID;

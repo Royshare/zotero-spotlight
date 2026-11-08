@@ -13,6 +13,11 @@ import {
   isInReadingQueue,
   setReadingQueueState,
 } from "./readingQueue";
+import {
+  buildPriorityTemplate,
+  type CollectionTemplateInfo,
+} from "./collectionPriority";
+import { getAncestorNames } from "./collectionSearch";
 
 export type CommandContext = "main" | "reader" | "note";
 
@@ -616,6 +621,55 @@ export class CommandRegistry {
             }
           }
           pane.selectItem?.(target.id);
+        },
+      },
+      {
+        id: "copy-collection-priorities",
+        title: "Copy Collection Priorities Template",
+        subtitle:
+          "Copy editable JSON that ranks libraries and collections in search results",
+        keywords: [
+          "priority",
+          "priorities",
+          "ranking",
+          "rank",
+          "boost",
+          "config",
+          "json",
+          "libraries",
+          "collections",
+        ],
+        contexts: ["main"],
+        icon: "copy-bibliography",
+        group: "Export",
+        isAvailable: ({ pane }) => {
+          if (!pane) {
+            return {
+              enabled: false,
+              reason: "Main Zotero pane is unavailable",
+            };
+          }
+          return { enabled: true };
+        },
+        run: async () => {
+          const libraries: CollectionTemplateInfo[] = [];
+          const collections: CollectionTemplateInfo[] = [];
+          for (const library of Zotero.Libraries.getAll()) {
+            if (
+              library.archived ||
+              (library.libraryType !== "user" &&
+                library.libraryType !== "group")
+            ) {
+              continue;
+            }
+            libraries.push({
+              libraryID: library.libraryID,
+              name: library.name || "Library",
+            });
+          }
+          Zotero.Utilities.Internal.copyTextToClipboard(
+            buildPriorityTemplate(libraries),
+          );
         },
       },
       {

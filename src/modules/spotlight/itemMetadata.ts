@@ -100,12 +100,21 @@ export function getItemNoteSnippetSafe(
   }
 }
 
-export type AttachmentResultType = "item" | "pdf" | "epub" | "snapshot";
+export type AttachmentResultType =
+  "item" | "pdf" | "epub" | "snapshot" | "link";
 
 export function getAttachmentResultType(
   item: Zotero.Item,
 ): AttachmentResultType {
   const candidate = item as any;
+  // Linked web URLs are pointers, not stored content; give them their
+  // own category so they can be ranked/filtered independently.
+  if (
+    typeof candidate.isFileAttachment === "function" &&
+    !candidate.isFileAttachment()
+  ) {
+    return "link";
+  }
   if (typeof candidate.isPDFAttachment === "function") {
     if (candidate.isPDFAttachment()) {
       return "pdf";
