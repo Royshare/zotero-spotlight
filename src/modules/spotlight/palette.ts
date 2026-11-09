@@ -1,4 +1,9 @@
-import type { ActionHandler, OpenIntent } from "./actions";
+import {
+  resolveModifiedEnterAction,
+  type ActionHandler,
+  type ModifiedEnterAction,
+  type OpenIntent,
+} from "./actions";
 import { CommandRegistry } from "./commands";
 import type { CommandResult } from "./commands";
 import type {
@@ -507,8 +512,99 @@ export class PaletteUI {
         void this.activateSelectedPanelAction();
         return;
       }
+      const modifiedAction = this.getModifiedEnterAction(event);
+      if (modifiedAction) {
+        void this.activateModifiedEnterAction(modifiedAction);
+        return;
+      }
       void this.activateSelection(this.getOpenIntent(event));
     }
+  }
+
+  private getModifiedEnterAction(
+    event: KeyboardEvent,
+  ): ModifiedEnterAction | null {
+    const modifierKey = Zotero.isMac ? event.metaKey : event.ctrlKey;
+    const otherPrimaryKey = Zotero.isMac ? event.ctrlKey : event.metaKey;
+    if (otherPrimaryKey || (event.shiftKey && event.altKey)) {
+      return null;
+    }
+    if (modifierKey && event.shiftKey) {
+      return resolveModifiedEnterAction(
+        getPref("modifierShiftEnterAction"),
+        "reveal",
+      );
+    }
+    if (modifierKey && event.altKey) {
+      return resolveModifiedEnterAction(
+        getPref("modifierAltEnterAction"),
+        "reveal",
+      );
+    }
+    if (modifierKey) {
+      return resolveModifiedEnterAction(
+        getPref("modifierEnterAction"),
+        "reveal",
+      );
+    }
+    if (event.shiftKey) {
+      return resolveModifiedEnterAction(
+        getPref("shiftEnterAction"),
+        "alternate",
+      );
+    }
+    if (event.altKey) {
+      return resolveModifiedEnterAction(getPref("altEnterAction"), "open");
+    }
+    return resolveModifiedEnterAction(getPref("enterAction"), "open");
+  }
+
+  private async activateModifiedEnterAction(
+    configuredAction: ModifiedEnterAction,
+  ): Promise<void> {
+    if (
+      configuredAction === "open" ||
+      configuredAction === "alternate" ||
+      configuredAction === "reveal"
+    ) {
+      const intent: OpenIntent =
+        configuredAction === "alternate"
+          ? "alternate"
+          : configuredAction === "reveal"
+            ? "reveal"
+            : "default";
+      await this.activateSelection(intent);
+      return;
+    }
+    const result = this.getSelectedResult();
+    if (
+      !result ||
+      result.kind === "history" ||
+      result.kind === "command" ||
+      result.kind === "collection"
+    ) {
+      await this.activateSelection("default");
+      return;
+    }
+
+    const actionIDs: Record<
+      Exclude<ModifiedEnterAction, "open" | "reveal" | "alternate">,
+      string[]
+    > = {
+      "open-attachment": ["open-attachment", "open-parent-attachment"],
+      "copy-citation": ["copy-citation"],
+      "copy-bibliography": ["copy-bibliography"],
+      "copy-content": ["copy-note-content", "copy-annotation-content"],
+    };
+    const ids = actionIDs[configuredAction];
+    const action = this.getPanelActions().find((candidate) =>
+      ids.includes(candidate.id),
+    );
+    if (!action) {
+      await this.activateSelection("default");
+      return;
+    }
+    await action.run();
   }
 
   private async updateResults(query: string): Promise<void> {
@@ -1154,20 +1250,64 @@ export class PaletteUI {
               "Open one of the first nine numbered search results directly.",
           },
           {
-            label: "Open selected result",
+            label: this.getModifiedEnterActionLabel(
+              resolveModifiedEnterAction(getPref("enterAction"), "open"),
+            ),
             shortcut: "Enter",
-            detail: "Open the selected item, note, attachment, or command.",
+            detail:
+              "Configured in Preferences; unavailable actions fall back to opening the result.",
           },
           {
-            label: "Reveal selected result in library",
+            label: this.getModifiedEnterActionLabel(
+              resolveModifiedEnterAction(
+                getPref("modifierEnterAction"),
+                "reveal",
+              ),
+            ),
             shortcut: `${getModifierKeyLabel()}+Enter`,
             detail:
-              "Jump the Zotero library selection without breaking the keyboard flow.",
+              "Configured in Preferences; unavailable actions fall back to opening the result.",
           },
           {
-            label: "Alternate open",
+            label: this.getModifiedEnterActionLabel(
+              resolveModifiedEnterAction(getPref("altEnterAction"), "open"),
+            ),
+            shortcut: `${Zotero.isMac ? "Option" : "Alt"}+Enter`,
+            detail:
+              "Configured in Preferences; unavailable actions fall back to opening the result.",
+          },
+          {
+            label: this.getModifiedEnterActionLabel(
+              resolveModifiedEnterAction(
+                getPref("modifierShiftEnterAction"),
+                "reveal",
+              ),
+            ),
+            shortcut: `${getModifierKeyLabel()}+Shift+Enter`,
+            detail:
+              "Configured in Preferences; unavailable actions fall back to opening the result.",
+          },
+          {
+            label: this.getModifiedEnterActionLabel(
+              resolveModifiedEnterAction(
+                getPref("modifierAltEnterAction"),
+                "reveal",
+              ),
+            ),
+            shortcut: `${getModifierKeyLabel()}+${Zotero.isMac ? "Option" : "Alt"}+Enter`,
+            detail:
+              "Configured in Preferences; unavailable actions fall back to opening the result.",
+          },
+          {
+            label: this.getModifiedEnterActionLabel(
+              resolveModifiedEnterAction(
+                getPref("shiftEnterAction"),
+                "alternate",
+              ),
+            ),
             shortcut: "Shift+Enter",
-            detail: "Use the alternate open behavior for the selected result.",
+            detail:
+              "Configured in Preferences; unavailable actions fall back to opening the result.",
           },
           {
             label: "Command mode",
@@ -1190,6 +1330,25 @@ export class PaletteUI {
       ...this.collectSpotlightCommandSections(),
       ...this.collectWindowShortcutSections(),
     ];
+  }
+
+  private getModifiedEnterActionLabel(action: ModifiedEnterAction): string {
+    switch (action) {
+      case "open":
+        return "Open selected result";
+      case "reveal":
+        return "Reveal selected result in library";
+      case "alternate":
+        return "Open selected result in a new window";
+      case "open-attachment":
+        return "Open selected result's attachment";
+      case "copy-citation":
+        return "Copy citation";
+      case "copy-bibliography":
+        return "Copy bibliography";
+      case "copy-content":
+        return "Copy result content";
+    }
   }
 
   private getFrequentZoteroShortcuts(): ShortcutGuideEntry[] {

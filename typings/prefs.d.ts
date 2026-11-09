@@ -12,6 +12,12 @@ declare namespace _ZoteroTypes {
       "searchShortcut": string;
       "commandShortcut": string;
       "guideShortcut": string;
+      "enterAction": string;
+      "modifierEnterAction": string;
+      "shiftEnterAction": string;
+      "altEnterAction": string;
+      "modifierShiftEnterAction": string;
+      "modifierAltEnterAction": string;
       "resultsLimit": number;
     };
   }
