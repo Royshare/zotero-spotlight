@@ -48,11 +48,11 @@ The default shortcuts are:
 
 Inside Spotlight:
 
-- Use `Up` / `Down` to select a result and `Enter` to open it.
+- Use `Up` / `Down` to select a result. Enter and modified-Enter actions can be configured in Preferences.
 - Press `Tab` to open and search the selected result's contextual actions.
 - Press `Ctrl+1` through `Ctrl+9` to open a numbered result immediately.
-- Press `Cmd+Enter` on macOS or `Ctrl+Enter` elsewhere to reveal an item result in the Zotero library.
-- Press `Shift+Enter` for an item's alternate open behavior, such as opening a reader or note in a separate window.
+- `Cmd+Enter` on macOS or `Ctrl+Enter` elsewhere reveals the selected result in the library by default. `Shift+Enter` opens it in a new window by default.
+- Choose actions for `Cmd/Ctrl+Enter`, `Shift+Enter`, `Option/Alt+Enter`, `Cmd/Ctrl+Shift+Enter`, and `Cmd/Ctrl+Option/Alt+Enter` in Preferences. Available actions include opening an attachment, copying a citation or bibliography, and copying result content. If an action is unavailable for the selected result, Spotlight opens the result instead.
 - Press `Escape` to return from actions or close Spotlight.
 
 Search, command, and shortcut-guide shortcuts can be configured independently
