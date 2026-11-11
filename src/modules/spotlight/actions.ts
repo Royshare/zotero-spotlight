@@ -7,6 +7,32 @@ import {
 } from "./attachmentHelpers";
 
 export type OpenIntent = "default" | "alternate" | "reveal";
+export type ModifiedEnterAction =
+  | "open"
+  | "reveal"
+  | "alternate"
+  | "open-attachment"
+  | "copy-citation"
+  | "copy-bibliography"
+  | "copy-content";
+
+export function resolveModifiedEnterAction(
+  value: unknown,
+  fallback: ModifiedEnterAction,
+): ModifiedEnterAction {
+  const actions: ModifiedEnterAction[] = [
+    "open",
+    "reveal",
+    "alternate",
+    "open-attachment",
+    "copy-citation",
+    "copy-bibliography",
+    "copy-content",
+  ];
+  return actions.includes(value as ModifiedEnterAction)
+    ? (value as ModifiedEnterAction)
+    : fallback;
+}
 
 export class ActionHandler {
   async focusItemInLibrary(itemID: number): Promise<void> {

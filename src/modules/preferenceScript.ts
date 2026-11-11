@@ -1,5 +1,6 @@
 import { config } from "../../package.json";
 import { getPref, setPref } from "../utils/prefs";
+import { resolveModifiedEnterAction } from "./spotlight/actions";
 import {
   assignGuideShortcut,
   assignSpotlightShortcut,
@@ -41,6 +42,60 @@ function syncPrefUI() {
     searchShortcutSelect.value = shortcuts.search;
     commandShortcutSelect.value = shortcuts.command;
     guideShortcutSelect.value = getConfiguredGuideShortcut();
+  }
+  const enterActionSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-enter-action`,
+  ) as HTMLSelectElement | null;
+  if (enterActionSelect) {
+    enterActionSelect.value = resolveModifiedEnterAction(
+      getPref("enterAction"),
+      "open",
+    );
+  }
+  const modifierEnterActionSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-modifier-enter-action`,
+  ) as HTMLSelectElement | null;
+  if (modifierEnterActionSelect) {
+    modifierEnterActionSelect.value = resolveModifiedEnterAction(
+      getPref("modifierEnterAction"),
+      "reveal",
+    );
+  }
+  const shiftEnterActionSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-shift-enter-action`,
+  ) as HTMLSelectElement | null;
+  if (shiftEnterActionSelect) {
+    shiftEnterActionSelect.value = resolveModifiedEnterAction(
+      getPref("shiftEnterAction"),
+      "alternate",
+    );
+  }
+  const altEnterActionSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-alt-enter-action`,
+  ) as HTMLSelectElement | null;
+  if (altEnterActionSelect) {
+    altEnterActionSelect.value = resolveModifiedEnterAction(
+      getPref("altEnterAction"),
+      "open",
+    );
+  }
+  const modifierShiftEnterActionSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-modifier-shift-enter-action`,
+  ) as HTMLSelectElement | null;
+  if (modifierShiftEnterActionSelect) {
+    modifierShiftEnterActionSelect.value = resolveModifiedEnterAction(
+      getPref("modifierShiftEnterAction"),
+      "reveal",
+    );
+  }
+  const modifierAltEnterActionSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-modifier-alt-enter-action`,
+  ) as HTMLSelectElement | null;
+  if (modifierAltEnterActionSelect) {
+    modifierAltEnterActionSelect.value = resolveModifiedEnterAction(
+      getPref("modifierAltEnterAction"),
+      "reveal",
+    );
   }
   const limitInput = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-results-limit`,
@@ -107,6 +162,63 @@ function bindPrefEvents() {
     commandShortcutSelect,
     guideShortcutSelect,
   );
+  const enterActionSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-enter-action`,
+  ) as HTMLSelectElement | null;
+  enterActionSelect?.addEventListener("change", () => {
+    setPref(
+      "enterAction",
+      resolveModifiedEnterAction(enterActionSelect.value, "open"),
+    );
+  });
+  const modifierEnterActionSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-modifier-enter-action`,
+  ) as HTMLSelectElement | null;
+  modifierEnterActionSelect?.addEventListener("change", () => {
+    setPref(
+      "modifierEnterAction",
+      resolveModifiedEnterAction(modifierEnterActionSelect.value, "reveal"),
+    );
+  });
+  const shiftEnterActionSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-shift-enter-action`,
+  ) as HTMLSelectElement | null;
+  shiftEnterActionSelect?.addEventListener("change", () => {
+    setPref(
+      "shiftEnterAction",
+      resolveModifiedEnterAction(shiftEnterActionSelect.value, "alternate"),
+    );
+  });
+  const altEnterActionSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-alt-enter-action`,
+  ) as HTMLSelectElement | null;
+  altEnterActionSelect?.addEventListener("change", () => {
+    setPref(
+      "altEnterAction",
+      resolveModifiedEnterAction(altEnterActionSelect.value, "open"),
+    );
+  });
+  const modifierShiftEnterActionSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-modifier-shift-enter-action`,
+  ) as HTMLSelectElement | null;
+  modifierShiftEnterActionSelect?.addEventListener("change", () => {
+    setPref(
+      "modifierShiftEnterAction",
+      resolveModifiedEnterAction(
+        modifierShiftEnterActionSelect.value,
+        "reveal",
+      ),
+    );
+  });
+  const modifierAltEnterActionSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-modifier-alt-enter-action`,
+  ) as HTMLSelectElement | null;
+  modifierAltEnterActionSelect?.addEventListener("change", () => {
+    setPref(
+      "modifierAltEnterAction",
+      resolveModifiedEnterAction(modifierAltEnterActionSelect.value, "reveal"),
+    );
+  });
   const limitInput = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-results-limit`,
   ) as HTMLInputElement | null;
@@ -158,6 +270,12 @@ function bindPrefEvents() {
     setPref("searchShortcut", "mod-p");
     setPref("commandShortcut", "mod-shift-p");
     setPref("guideShortcut", "mod-j");
+    setPref("enterAction", "open");
+    setPref("modifierEnterAction", "reveal");
+    setPref("shiftEnterAction", "alternate");
+    setPref("altEnterAction", "open");
+    setPref("modifierShiftEnterAction", "reveal");
+    setPref("modifierAltEnterAction", "reveal");
     setPref("resultsLimit", 20);
     (setPref as any)("windowHeight", 400);
     (setPref as any)("windowWidth", 560);
