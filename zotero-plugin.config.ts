@@ -1,22 +1,32 @@
 import { defineConfig } from "zotero-plugin-scaffold";
 import pkg from "./package.json";
 
+const updateURL = `https://github.com/${pkg.repository.url
+  .replace(/^git\+https:\/\/github.com\//, "")
+  .replace(/\.git$/, "")}/releases/download/release/${
+  pkg.version.includes("-") ? "update-beta.json" : "update.json"
+}`;
+
 export default defineConfig({
   source: ["src", "addon"],
   dist: ".scaffold/build",
   name: pkg.config.addonName,
   id: pkg.config.addonID,
   namespace: pkg.config.addonRef,
-  updateURL: `https://github.com/{{owner}}/{{repo}}/releases/download/release/${
-    pkg.version.includes("-") ? "update-beta.json" : "update.json"
-  }`,
+  updateURL,
   xpiDownloadLink:
     "https://github.com/{{owner}}/{{repo}}/releases/download/v{{version}}/{{xpiName}}.xpi",
 
   build: {
     assets: ["addon/**/*.*"],
+    // addon/manifest.json already contains all required fields and placeholders.
+    // Let replaceDefine() render it instead of the scaffold's unawaited write.
+    makeManifest: {
+      enable: false,
+    },
     define: {
       ...pkg.config,
+      updateURL,
       author: pkg.author,
       description: pkg.description,
       homepage: pkg.homepage,
