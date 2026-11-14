@@ -1,3 +1,5 @@
+import { scoreSearchText } from "./textMatching";
+
 export type CollectionNavigationResult = {
   kind: "collection";
   id: number;
@@ -148,7 +150,7 @@ function scoreLocation(
   }
   const title = normalize(rawTitle);
   const searchText = normalize(rawSearchText);
-  const base = fuzzyScore(query, searchText);
+  const base = scoreSearchText(query, searchText);
   if (base <= 0) {
     return -1;
   }
@@ -165,29 +167,4 @@ function scoreLocation(
 
 function normalize(value: string): string {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
-}
-
-function fuzzyScore(query: string, text: string): number {
-  if (!query) {
-    return 10;
-  }
-  if (text.includes(query)) {
-    return 100 - Math.max(0, text.indexOf(query));
-  }
-  let queryIndex = 0;
-  let score = 0;
-  let lastMatch = -1;
-  for (
-    let index = 0;
-    index < text.length && queryIndex < query.length;
-    index++
-  ) {
-    if (text[index] !== query[queryIndex]) {
-      continue;
-    }
-    score += lastMatch === index - 1 ? 4 : 1;
-    lastMatch = index;
-    queryIndex += 1;
-  }
-  return queryIndex === query.length ? score : -1;
 }

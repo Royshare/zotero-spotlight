@@ -9,6 +9,7 @@ import {
 } from "./itemMetadata";
 import { getPref } from "../../utils/prefs";
 import { NORMALIZED_READING_QUEUE_TAG } from "./readingQueue";
+import { scoreSearchText } from "./textMatching";
 
 export type QuickOpenResult = ItemResult | AttachmentResult | AnnotationResult;
 
@@ -844,7 +845,7 @@ function isUnloadedDataError(error: unknown): boolean {
   );
 }
 
-function parseStructuredQuery(rawQuery: string): ParsedQuery {
+export function parseStructuredQuery(rawQuery: string): ParsedQuery {
   const tokens = tokenize(rawQuery);
   const textTokens: string[] = [];
   const types = new Set<ResultType>();
@@ -926,7 +927,7 @@ function parsePdfContentQuery(rawQuery: string): string | null {
 
 function getEntryScore(entry: IndexedEntry, query: ParsedQuery): number {
   const baseScore = query.textQuery
-    ? fuzzyScore(query.textQuery, entry.searchText)
+    ? scoreSearchText(query.textQuery, entry.searchText)
     : 10;
   if (baseScore <= 0) {
     return -1;
@@ -1104,47 +1105,4 @@ function shouldSearchAnnotations(query: ParsedQuery): boolean {
 
 function normalize(value: string): string {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
-}
-
-function fuzzyScore(query: string, text: string): number {
-  const q = normalize(query);
-  const t = normalize(text);
-  if (!q || !t) {
-    return -1;
-  }
-  let score = 0;
-  let tIndex = 0;
-  let lastMatch = -1;
-  let consecutive = 0;
-  for (let i = 0; i < q.length; i += 1) {
-    const char = q[i];
-    let found = false;
-    while (tIndex < t.length) {
-      if (t[tIndex] === char) {
-        found = true;
-        break;
-      }
-      tIndex += 1;
-    }
-    if (!found) {
-      return -1;
-    }
-    if (tIndex === lastMatch + 1) {
-      consecutive += 1;
-      score += 5 + consecutive;
-    } else {
-      consecutive = 0;
-      score += 1;
-    }
-    if (tIndex === 0 || " /-_".includes(t[tIndex - 1])) {
-      score += 3;
-    }
-    lastMatch = tIndex;
-    tIndex += 1;
-  }
-  if (t.includes(q)) {
-    score += 8;
-  }
-  score += Math.max(0, 10 - (t.length - q.length));
-  return score;
 }

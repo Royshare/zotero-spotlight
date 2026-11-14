@@ -1,4 +1,4 @@
-# Zotero Spotlight
+<h1><img src="addon/content/icons/favicon.png" width="36" valign="middle" alt=""> Zotero Spotlight</h1>
 
 [![zotero target version](https://img.shields.io/badge/Zotero-7%2F8%2F9%2F10-green?style=flat-square&logo=zotero&logoColor=CC2936)](https://www.zotero.org)
 [![Using Zotero Plugin Template](https://img.shields.io/badge/Using-Zotero%20Plugin%20Template-blue?style=flat-square&logo=github)](https://github.com/windingwind/zotero-plugin-template)
