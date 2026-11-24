@@ -19,6 +19,8 @@ declare namespace _ZoteroTypes {
       "modifierShiftEnterAction": string;
       "modifierAltEnterAction": string;
       "resultsLimit": number;
+      "unselectedLibraries": string;
+      "unselectedLibraryMode": string;
     };
   }
 }

@@ -2,6 +2,10 @@ import { config } from "../../package.json";
 import { getPref, setPref } from "../utils/prefs";
 import { resolveModifiedEnterAction } from "./spotlight/actions";
 import {
+  getLibraryScope,
+  serializeLibraryIDList,
+} from "./spotlight/libraryScope";
+import {
   assignGuideShortcut,
   assignSpotlightShortcut,
   reconcileGuideShortcut,
@@ -141,6 +145,66 @@ function syncPrefUI() {
     filterHintBarCheckbox.checked =
       val === undefined || val === null ? true : !!val;
   }
+  renderLibraryScope(doc);
+}
+
+/** Libraries a user can choose for the default search scope. */
+function getScopeLibraries() {
+  return Zotero.Libraries.getAll().filter(
+    (library) =>
+      !library.archived &&
+      (library.libraryType === "user" || library.libraryType === "group"),
+  );
+}
+
+function renderLibraryScope(doc: Document) {
+  const list = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-library-scope-list`,
+  ) as HTMLElement | null;
+  const lowerCheckbox = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-library-scope-lower`,
+  ) as HTMLInputElement | null;
+  const scope = getLibraryScope();
+  if (lowerCheckbox) {
+    lowerCheckbox.checked = scope.mode === "lower";
+  }
+  if (!list) {
+    return;
+  }
+  list.replaceChildren();
+  const libraries = getScopeLibraries();
+  const selectedCount = libraries.filter(
+    (library) => !scope.unselected.has(library.libraryID),
+  ).length;
+  for (const library of libraries) {
+    const id = `zotero-prefpane-${config.addonRef}-library-scope-${library.libraryID}`;
+    const row = doc.createElement("div");
+    row.style.display = "flex";
+    row.style.alignItems = "center";
+    row.style.gap = "6px";
+    const checkbox = doc.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.id = id;
+    checkbox.checked = !scope.unselected.has(library.libraryID);
+    // Keep at least one library selected so normal search never comes up
+    // empty because of this setting alone.
+    checkbox.disabled = checkbox.checked && selectedCount === 1;
+    checkbox.addEventListener("change", () => {
+      const unselected = new Set(getLibraryScope().unselected);
+      if (checkbox.checked) {
+        unselected.delete(library.libraryID);
+      } else {
+        unselected.add(library.libraryID);
+      }
+      setPref("unselectedLibraries", serializeLibraryIDList(unselected));
+      renderLibraryScope(doc);
+    });
+    const label = doc.createElement("label");
+    label.htmlFor = id;
+    label.textContent = library.name;
+    row.append(checkbox, label);
+    list.appendChild(row);
+  }
 }
 
 function bindPrefEvents() {
@@ -261,6 +325,15 @@ function bindPrefEvents() {
   filterHintBarCheckboxBind?.addEventListener("change", () => {
     (setPref as any)("showFilterHintBar", filterHintBarCheckboxBind.checked);
   });
+  const libraryScopeLowerCheckbox = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-library-scope-lower`,
+  ) as HTMLInputElement | null;
+  libraryScopeLowerCheckbox?.addEventListener("change", () => {
+    setPref(
+      "unselectedLibraryMode",
+      libraryScopeLowerCheckbox.checked ? "lower" : "exclude",
+    );
+  });
   const resetButton = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-reset-defaults`,
   ) as HTMLButtonElement | null;
@@ -282,6 +355,8 @@ function bindPrefEvents() {
     (setPref as any)("searchAnnotations", true);
     (setPref as any)("restoreSearch", false);
     (setPref as any)("showFilterHintBar", true);
+    setPref("unselectedLibraries", "");
+    setPref("unselectedLibraryMode", "exclude");
     syncPrefUI();
   });
 }

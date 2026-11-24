@@ -65,4 +65,7 @@ pref-search-section = Search
 pref-search-annotations = Search annotations
 pref-restore-search = Restore last search when reopening Spotlight
 pref-show-filter-hint-bar = Show filter hint bar
+pref-library-scope-section = Default Search Scope
+pref-library-scope-hint = Choose which libraries normal searches include. Searching within the current collection always searches that collection.
+pref-library-scope-lower = Keep unselected libraries searchable, listed after selected libraries
 pref-reset-defaults = Reset to defaults

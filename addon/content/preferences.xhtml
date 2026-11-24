@@ -433,6 +433,35 @@
     </hbox>
   </vbox>
   <vbox>
+    <label
+      class="zotero-spotlight-section-label"
+      data-l10n-id="pref-library-scope-section"
+    ></label>
+    <description data-l10n-id="pref-library-scope-hint"></description>
+    <html:div
+      id="zotero-prefpane-__addonRef__-library-scope-list"
+      style="
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        max-height: 220px;
+        overflow-y: auto;
+        margin: 4px 0;
+      "
+    ></html:div>
+    <hbox align="center">
+      <html:input
+        type="checkbox"
+        id="zotero-prefpane-__addonRef__-library-scope-lower"
+      />
+      <html:label
+        for="zotero-prefpane-__addonRef__-library-scope-lower"
+        data-l10n-id="pref-library-scope-lower"
+        style="margin-left: 6px"
+      ></html:label>
+    </hbox>
+  </vbox>
+  <vbox>
     <html:button
       id="zotero-prefpane-__addonRef__-reset-defaults"
       data-l10n-id="pref-reset-defaults"
