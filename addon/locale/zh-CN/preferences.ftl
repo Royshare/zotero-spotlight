@@ -66,7 +66,7 @@ pref-search-annotations = 搜索批注
 pref-restore-search = 重新打开 Spotlight 时恢复上一次搜索
 pref-show-filter-hint-bar = 显示过滤提示栏
 pref-priority-section = 默认搜索范围
-pref-priority-hint = 选择默认搜索哪些图书馆。未勾选的图书馆不会出现在结果中，但您仍可在搜索中访问全部内容——`:col 关键词` 始终搜索所有图书馆中的全部分类。也可以让未勾选的图书馆保持可搜索但排名较低。 可用 "matching": {"mode": "field", "typoDistance": 1, "minTokenLength": 4} 调整单词匹配；设为 "loose" 可恢复旧的整条记录模糊匹配。
+pref-priority-hint = 选择默认搜索哪些图书馆。未勾选的图书馆不会出现在结果中，但您仍可在搜索中访问全部内容——`:col 关键词` 始终搜索所有图书馆中的全部分类。也可以让未勾选的图书馆保持可搜索但排名较低。 可用 "matching": {"{"}"mode": "field", "typoDistance": 1, "minTokenLength": 4{"}"} 调整单词匹配；设为 "loose" 可恢复旧的整条记录模糊匹配。
 pref-priority-libraries-label = 默认搜索的图书馆
 pref-priority-unlisted = 未选中的图书馆仍可搜索，但优先级较低
 pref-priority-tiers-label = 结果类型层级（1 = 最高）
