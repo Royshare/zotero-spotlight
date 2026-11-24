@@ -65,4 +65,7 @@ pref-search-section = 搜索
 pref-search-annotations = 搜索批注
 pref-restore-search = 重新打开 Spotlight 时恢复上一次搜索
 pref-show-filter-hint-bar = 显示过滤提示栏
+pref-library-scope-section = 默认搜索范围
+pref-library-scope-hint = 选择普通搜索包含哪些文库。在当前分类中搜索时，始终会搜索该分类。
+pref-library-scope-lower = 未选中的文库仍可搜索，排在已选文库之后
 pref-reset-defaults = 恢复默认设置

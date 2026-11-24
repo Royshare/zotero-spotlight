@@ -67,6 +67,7 @@ to another Spotlight action swaps the assignments.
 
 - Fuzzy-search items, notes, PDFs, EPUBs, snapshots, and annotations across personal and group libraries.
 - Optionally restrict a normal search to the currently selected collection, including its subcollections.
+- Choose which libraries normal searches include by default. Unselected libraries are left out of results, or kept searchable and listed after selected libraries. Item, annotation, and PDF text searches all follow this setting, while a current-collection search always searches that collection and `:col` mode still lists every library.
 - Type `:col query` to enter a separate collection-only mode, search collection paths and group libraries, and switch the Zotero collection tree with `Enter`.
 - Use `>tabs` to search and switch across open Zotero tabs.
 - Start from a smart recent view containing recent searches, open readers, recently closed readers, and recently activated items.
@@ -122,6 +123,7 @@ results.
 - Configure independent search, command, and shortcut-guide shortcuts with automatic conflict swapping.
 - Set the result limit and Spotlight window width and height.
 - Enable or disable annotation search, restoration of the previous query, and the filter hint bar.
+- Pick the libraries searched by default from a checklist of your personal and group libraries.
 - Reset all Spotlight preferences to their defaults in one click.
 - Open the built-in shortcut guide with its configured shortcut to see Spotlight controls, frequent Zotero shortcuts, available command shortcuts, and shortcuts contributed by other plugins or the active window.
 
