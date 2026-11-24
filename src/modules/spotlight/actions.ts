@@ -65,6 +65,10 @@ export class ActionHandler {
     if (!attachment) {
       return;
     }
+    if (getAttachmentResultType(attachment) === "link") {
+      this.openLinkedUrl(attachment);
+      return;
+    }
     if (
       alternate &&
       isOpenableAttachment(attachment) &&
@@ -113,6 +117,21 @@ export class ActionHandler {
     if (pane?.viewAttachment) {
       pane.viewAttachment(attachmentID);
     }
+  }
+
+  /** Open a "Link to URI" attachment's page in the default browser. */
+  private openLinkedUrl(attachment: Zotero.Item): void {
+    let url = "";
+    try {
+      url = String(attachment.getField("url") || "");
+    } catch (error) {
+      ztoolkit.log("Could not read linked URL", error);
+    }
+    if (url) {
+      Zotero.launchURL(url);
+      return;
+    }
+    Zotero.getMainWindow()?.ZoteroPane?.viewAttachment?.(attachment.id);
   }
 
   async revealAttachmentFile(attachmentID: number): Promise<void> {

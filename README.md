@@ -65,7 +65,8 @@ to another Spotlight action swaps the assignments.
 
 ### 1. Library-Wide Search and Navigation
 
-- Fuzzy-search items, notes, PDFs, EPUBs, snapshots, and annotations across personal and group libraries.
+- Fuzzy-search items, notes, PDFs, EPUBs, snapshots, web links, and annotations across personal and group libraries.
+- Find linked web pages by their title or URL. A link attached to a paper also matches the paper's metadata, shows a `LINK` badge, and opens in your browser.
 - Optionally restrict a normal search to the currently selected collection, including its subcollections.
 - Type `:col query` to enter a separate collection-only mode, search collection paths and group libraries, and switch the Zotero collection tree with `Enter`.
 - Use `>tabs` to search and switch across open Zotero tabs.
@@ -75,18 +76,18 @@ to another Spotlight action swaps the assignments.
 
 ### 2. Search Syntax
 
-| Syntax                                                        | Purpose                                     | Example                   |
-| ------------------------------------------------------------- | ------------------------------------------- | ------------------------- |
-| Plain text                                                    | Fuzzy-search item metadata                  | `attention transformer`   |
-| `:pdf`, `:epub`, `:snapshot`, `:note`, `:item`, `:annotation` | Restrict result type                        | `:pdf neural`             |
-| `#tag`                                                        | Require a Zotero tag                        | `#methods regression`     |
-| `y:`                                                          | Match an exact year, range, or comparison   | `y:2020-2024`, `y:>=2022` |
-| `@query`                                                      | Search annotations only                     | `@limitations`            |
-| `=phrase`                                                     | Search indexed PDF text for an exact phrase | `=attention mechanism`    |
-| `:queue`                                                      | Show papers in the synced Reading Queue     | `:queue :pdf y:>=2024`    |
-| `:col query`                                                  | Search collections and group libraries only | `:col machine learning`   |
-| `>query`                                                      | Search commands                             | `>copy citation`          |
-| `>tabs`                                                       | List open Zotero tabs                       | `>tabs`                   |
+| Syntax                                                                 | Purpose                                     | Example                   |
+| ---------------------------------------------------------------------- | ------------------------------------------- | ------------------------- |
+| Plain text                                                             | Fuzzy-search item metadata                  | `attention transformer`   |
+| `:pdf`, `:epub`, `:snapshot`, `:note`, `:item`, `:annotation`, `:link` | Restrict result type                        | `:pdf neural`             |
+| `#tag`                                                                 | Require a Zotero tag                        | `#methods regression`     |
+| `y:`                                                                   | Match an exact year, range, or comparison   | `y:2020-2024`, `y:>=2022` |
+| `@query`                                                               | Search annotations only                     | `@limitations`            |
+| `=phrase`                                                              | Search indexed PDF text for an exact phrase | `=attention mechanism`    |
+| `:queue`                                                               | Show papers in the synced Reading Queue     | `:queue :pdf y:>=2024`    |
+| `:col query`                                                           | Search collections and group libraries only | `:col machine learning`   |
+| `>query`                                                               | Search commands                             | `>copy citation`          |
+| `>tabs`                                                                | List open Zotero tabs                       | `>tabs`                   |
 
 Normal item filters can be combined. A clickable hint bar exposes the available
 syntax, while inline autocomplete completes colon and year filters. Collection
