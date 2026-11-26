@@ -19,6 +19,9 @@ declare namespace _ZoteroTypes {
       "modifierShiftEnterAction": string;
       "modifierAltEnterAction": string;
       "resultsLimit": number;
+      "matchMode": string;
+      "matchTypoTolerance": number;
+      "matchMinTypoWordLength": number;
     };
   }
 }

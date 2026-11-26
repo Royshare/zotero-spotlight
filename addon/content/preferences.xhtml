@@ -433,6 +433,65 @@
     </hbox>
   </vbox>
   <vbox>
+    <label
+      class="zotero-spotlight-section-label"
+      data-l10n-id="pref-matching-section"
+    ></label>
+    <description data-l10n-id="pref-matching-hint"></description>
+    <html:div class="zotero-spotlight-shortcut-grid">
+      <html:label
+        for="zotero-prefpane-__addonRef__-matching-mode"
+        data-l10n-id="pref-matching-mode-label"
+      ></html:label>
+      <html:select
+        id="zotero-prefpane-__addonRef__-matching-mode"
+        class="zotero-spotlight-shortcut-select"
+      >
+        <html:option
+          value="fuzzy"
+          data-l10n-id="pref-matching-mode-fuzzy"
+        ></html:option>
+        <html:option
+          value="precise"
+          data-l10n-id="pref-matching-mode-precise"
+        ></html:option>
+      </html:select>
+      <html:label
+        for="zotero-prefpane-__addonRef__-matching-typo-tolerance"
+        data-l10n-id="pref-matching-typo-tolerance-label"
+      ></html:label>
+      <html:select
+        id="zotero-prefpane-__addonRef__-matching-typo-tolerance"
+        class="zotero-spotlight-shortcut-select"
+      >
+        <html:option
+          value="0"
+          data-l10n-id="pref-matching-typo-off"
+        ></html:option>
+        <html:option
+          value="1"
+          data-l10n-id="pref-matching-typo-1"
+        ></html:option>
+        <html:option
+          value="2"
+          data-l10n-id="pref-matching-typo-2"
+        ></html:option>
+      </html:select>
+      <html:label
+        for="zotero-prefpane-__addonRef__-matching-min-typo-word-length"
+        data-l10n-id="pref-matching-min-typo-word-length-label"
+      ></html:label>
+      <html:input
+        type="number"
+        id="zotero-prefpane-__addonRef__-matching-min-typo-word-length"
+        min="1"
+        max="20"
+        step="1"
+        style="min-width: 60px"
+      ></html:input>
+    </html:div>
+  </vbox>
+  <vbox>
     <html:button
       id="zotero-prefpane-__addonRef__-reset-defaults"
       data-l10n-id="pref-reset-defaults"

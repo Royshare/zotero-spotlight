@@ -10,6 +10,11 @@ import {
 import { getPref } from "../../utils/prefs";
 import { NORMALIZED_READING_QUEUE_TAG } from "./readingQueue";
 import { scoreSearchText } from "./textMatching";
+import {
+  createMatchOptions,
+  scorePreciseMatch,
+  type MatchOptions,
+} from "./matching";
 
 export type QuickOpenResult = ItemResult | AttachmentResult | AnnotationResult;
 
@@ -67,6 +72,8 @@ type IndexedEntry = {
   libraryID: number;
   libraryKind: "user" | "group";
   searchText: string;
+  // The same text kept per field, so precise matching never joins two fields.
+  searchFields: string[];
   // annotation-specific
   annotationColor?: string;
   annotationText?: string;
@@ -135,6 +142,11 @@ export class SearchService {
 
     const parsedQuery = parseStructuredQuery(query);
     const activeLibraryID = this.getActiveLibraryID(win);
+    const matchOptions = createMatchOptions(
+      getPref("matchMode"),
+      getPref("matchTypoTolerance"),
+      getPref("matchMinTypoWordLength"),
+    );
     await this.ensureBaseIndex();
     const searchAnnotations = shouldSearchAnnotations(parsedQuery);
     if (searchAnnotations) {
@@ -170,7 +182,7 @@ export class SearchService {
           entry.kind === "annotation" ? entry.attachmentID : entry.id;
         if (!checkID || !collectionItemIDs.has(checkID)) continue;
       }
-      const baseScore = getEntryScore(entry, parsedQuery);
+      const baseScore = getEntryScore(entry, parsedQuery, matchOptions);
       if (baseScore <= 0) {
         continue;
       }
@@ -451,6 +463,7 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
             searchText: normalize(
               `${title} ${subtitle} ${authors} ${tags.join(" ")} ${abstractSnippet}`,
             ),
+            searchFields: [title, subtitle, authors, ...tags, abstractSnippet],
           });
         } else if (item.isNote && item.isNote()) {
           const title = getNoteTitle(item);
@@ -474,6 +487,7 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
             searchText: normalize(
               `${title} ${subtitle} ${authors} ${tags.join(" ")} ${abstractSnippet}`,
             ),
+            searchFields: [title, subtitle, authors, ...tags, abstractSnippet],
           });
         } else if (item.isAttachment() && isSearchableAttachment(item)) {
           const title = getAttachmentTitle(item);
@@ -499,6 +513,7 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
             searchText: normalize(
               `${title} ${subtitle} ${authors} ${tags.join(" ")} ${abstractSnippet}`,
             ),
+            searchFields: [title, subtitle, authors, ...tags, abstractSnippet],
           });
         }
       } catch (error) {
@@ -655,6 +670,13 @@ async function buildAnnotationIndex(): Promise<IndexedEntry[]> {
           searchText: normalize(
             `${annotationText} ${annotationComment} ${parentMeta.title} ${parentMeta.authors} ${pageLabel}`,
           ),
+          searchFields: [
+            annotationText,
+            annotationComment,
+            parentMeta.title,
+            parentMeta.authors,
+            pageLabel,
+          ],
         });
       } catch (err) {
         ztoolkit.log("Spotlight skipped annotation", err);
@@ -925,10 +947,18 @@ function parsePdfContentQuery(rawQuery: string): string | null {
   return trimmedStart.slice(1).trim();
 }
 
-function getEntryScore(entry: IndexedEntry, query: ParsedQuery): number {
-  const baseScore = query.textQuery
-    ? scoreSearchText(query.textQuery, entry.searchText)
-    : 10;
+function getEntryScore(
+  entry: IndexedEntry,
+  query: ParsedQuery,
+  matchOptions: MatchOptions,
+): number {
+  // Fuzzy mode (the default) is unchanged; precise mode matches whole words
+  // within each field.
+  const baseScore = !query.textQuery
+    ? 10
+    : matchOptions.mode === "precise"
+      ? scorePreciseMatch(query.textQuery, entry.searchFields, matchOptions)
+      : scoreSearchText(query.textQuery, entry.searchText);
   if (baseScore <= 0) {
     return -1;
   }
