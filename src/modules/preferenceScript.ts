@@ -1,6 +1,7 @@
 import { config } from "../../package.json";
 import { getPref, setPref } from "../utils/prefs";
 import { resolveModifiedEnterAction } from "./spotlight/actions";
+import { createMatchOptions } from "./spotlight/matching";
 import {
   assignGuideShortcut,
   assignSpotlightShortcut,
@@ -141,6 +142,27 @@ function syncPrefUI() {
     filterHintBarCheckbox.checked =
       val === undefined || val === null ? true : !!val;
   }
+  const matchModeSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-matching-mode`,
+  ) as HTMLSelectElement | null;
+  const matchTypoToleranceSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-matching-typo-tolerance`,
+  ) as HTMLSelectElement | null;
+  const matchMinTypoWordLengthInput = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-matching-min-typo-word-length`,
+  ) as HTMLInputElement | null;
+  const matchOptions = getConfiguredMatchOptions();
+  if (matchModeSelect) {
+    matchModeSelect.value = matchOptions.mode;
+  }
+  if (matchTypoToleranceSelect) {
+    matchTypoToleranceSelect.value = String(matchOptions.typoTolerance);
+    matchTypoToleranceSelect.disabled = matchOptions.mode !== "precise";
+  }
+  if (matchMinTypoWordLengthInput) {
+    matchMinTypoWordLengthInput.value = String(matchOptions.minTypoWordLength);
+    matchMinTypoWordLengthInput.disabled = matchOptions.mode !== "precise";
+  }
 }
 
 function bindPrefEvents() {
@@ -261,6 +283,38 @@ function bindPrefEvents() {
   filterHintBarCheckboxBind?.addEventListener("change", () => {
     (setPref as any)("showFilterHintBar", filterHintBarCheckboxBind.checked);
   });
+  const matchModeSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-matching-mode`,
+  ) as HTMLSelectElement | null;
+  const matchTypoToleranceSelect = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-matching-typo-tolerance`,
+  ) as HTMLSelectElement | null;
+  const matchMinTypoWordLengthInput = doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-matching-min-typo-word-length`,
+  ) as HTMLInputElement | null;
+  // createMatchOptions validates and clamps each value before it is saved.
+  matchModeSelect?.addEventListener("change", () => {
+    setPref("matchMode", createMatchOptions(matchModeSelect.value, 0, 0).mode);
+    syncPrefUI();
+  });
+  matchTypoToleranceSelect?.addEventListener("change", () => {
+    const { typoTolerance } = createMatchOptions(
+      "fuzzy",
+      Number(matchTypoToleranceSelect.value),
+      undefined,
+    );
+    setPref("matchTypoTolerance", typoTolerance);
+    syncPrefUI();
+  });
+  matchMinTypoWordLengthInput?.addEventListener("change", () => {
+    const { minTypoWordLength } = createMatchOptions(
+      "fuzzy",
+      undefined,
+      Number(matchMinTypoWordLengthInput.value),
+    );
+    setPref("matchMinTypoWordLength", minTypoWordLength);
+    syncPrefUI();
+  });
   const resetButton = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-reset-defaults`,
   ) as HTMLButtonElement | null;
@@ -282,6 +336,9 @@ function bindPrefEvents() {
     (setPref as any)("searchAnnotations", true);
     (setPref as any)("restoreSearch", false);
     (setPref as any)("showFilterHintBar", true);
+    setPref("matchMode", "fuzzy");
+    setPref("matchTypoTolerance", 1);
+    setPref("matchMinTypoWordLength", 4);
     syncPrefUI();
   });
 }
@@ -299,6 +356,14 @@ function clampWindowHeight(value: number): number {
 function clampWindowWidth(value: number): number {
   if (Number.isNaN(value) || value <= 0) return 560;
   return Math.min(1200, Math.max(300, value));
+}
+
+function getConfiguredMatchOptions() {
+  return createMatchOptions(
+    getPref("matchMode"),
+    getPref("matchTypoTolerance"),
+    getPref("matchMinTypoWordLength"),
+  );
 }
 
 function getConfiguredShortcuts() {

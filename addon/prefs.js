@@ -10,3 +10,6 @@ pref("altEnterAction", "open");
 pref("modifierShiftEnterAction", "reveal");
 pref("modifierAltEnterAction", "reveal");
 pref("resultsLimit", 20);
+pref("matchMode", "fuzzy");
+pref("matchTypoTolerance", 1);
+pref("matchMinTypoWordLength", 4);
