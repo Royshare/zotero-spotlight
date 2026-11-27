@@ -6,9 +6,14 @@ import {
   getItemTagsSafe,
   getItemTitleSafe,
   getItemYearSafe,
+  isLinkedUrlAttachment,
 } from "./itemMetadata";
 import { getPref } from "../../utils/prefs";
 import { NORMALIZED_READING_QUEUE_TAG } from "./readingQueue";
+import {
+  compareResultTypePriority,
+  parseResultTypePriorities,
+} from "./resultTypePriority";
 import { scoreSearchText } from "./textMatching";
 
 export type QuickOpenResult = ItemResult | AttachmentResult | AnnotationResult;
@@ -20,7 +25,7 @@ export type SearchRankingState = {
 
 export type ResultKind = "item" | "attachment" | "annotation";
 export type ResultType =
-  "item" | "note" | "pdf" | "epub" | "snapshot" | "annotation";
+  "item" | "note" | "pdf" | "epub" | "snapshot" | "annotation" | "link";
 
 export interface BaseResult {
   id: number;
@@ -223,9 +228,17 @@ export class SearchService {
       }
       return r.kind === "annotation" ? 1 : 0;
     };
+    // Optional result type priorities (issue #60): ranked types come first,
+    // ties and unranked types keep their relevance order. Annotations are
+    // never ranked; they stay in their own section.
+    const typePriorities = parseResultTypePriorities(
+      getPref("resultTypePriorities"),
+    );
     const sorted = results.sort((a, b) => {
       const kindDiff = kindOrder(a) - kindOrder(b);
       if (kindDiff !== 0) return kindDiff;
+      const typeDiff = compareResultTypePriority(typePriorities, a, b);
+      if (typeDiff !== 0) return typeDiff;
       return b.score - a.score;
     });
 
@@ -414,7 +427,9 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
       if (!item || !item.isAttachment()) {
         continue;
       }
-      if (!isSearchableAttachment(item)) {
+      // A web link is only a pointer, so it does not stand in for its
+      // parent: the parent item and the link are both indexed.
+      if (!isSearchableAttachment(item) || isLinkedUrlAttachment(item)) {
         continue;
       }
       const parentID = (item as any).parentID ?? (item as any).parentItemID;
@@ -484,12 +499,16 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
           const parentTags = parent ? getItemTags(parent) : [];
           const tags = [...attachmentTags, ...parentTags].filter(Boolean);
           const abstractSnippet = parent ? getItemAbstractSnippet(parent) : "";
+          const resultType = getAttachmentResultType(item);
+          // Links are also searchable by URL, and a standalone link shows
+          // its URL where an attachment would show its parent's title.
+          const url = resultType === "link" ? getAttachmentUrl(item) : "";
           entries.push({
             id: item.id,
             kind: "attachment",
-            resultType: getAttachmentResultType(item),
+            resultType,
             title,
-            subtitle,
+            subtitle: subtitle || url,
             authors,
             tags,
             abstractSnippet,
@@ -497,7 +516,7 @@ async function buildBaseIndex(): Promise<IndexedEntry[]> {
             libraryID: library.libraryID,
             libraryKind,
             searchText: normalize(
-              `${title} ${subtitle} ${authors} ${tags.join(" ")} ${abstractSnippet}`,
+              `${title} ${subtitle} ${url} ${authors} ${tags.join(" ")} ${abstractSnippet}`,
             ),
           });
         }
@@ -695,6 +714,14 @@ function getAttachmentTitle(item: Zotero.Item): string {
 function getAttachmentSubtitle(item: Zotero.Item): string {
   const parent = getAttachmentParentItem(item);
   return parent ? getItemTitle(parent) : "";
+}
+
+function getAttachmentUrl(item: Zotero.Item): string {
+  try {
+    return String(item.getField("url") || "");
+  } catch (_) {
+    return "";
+  }
 }
 
 function getItemTags(item: Zotero.Item): string[] {
@@ -1016,7 +1043,8 @@ function parseTypeFilter(rawValue: string): ResultType[] {
       entry === "snapshot" ||
       entry === "note" ||
       entry === "item" ||
-      entry === "annotation"
+      entry === "annotation" ||
+      entry === "link"
     ) {
       parsed.push(entry as ResultType);
     }

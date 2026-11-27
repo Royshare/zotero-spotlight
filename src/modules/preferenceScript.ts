@@ -8,6 +8,13 @@ import {
   resolveGuideShortcut,
   resolveShortcutConfig,
 } from "./spotlight/shortcuts";
+import {
+  RANKABLE_RESULT_TYPES,
+  type RankableResultType,
+  type ResultTypePriorities,
+  parseResultTypePriorities,
+  serializeResultTypePriorities,
+} from "./spotlight/resultTypePriority";
 
 export async function registerPrefsScripts(_window: Window) {
   if (!addon.data.prefs) {
@@ -141,6 +148,7 @@ function syncPrefUI() {
     filterHintBarCheckbox.checked =
       val === undefined || val === null ? true : !!val;
   }
+  syncResultTypePriorityUI(doc);
 }
 
 function bindPrefEvents() {
@@ -261,6 +269,7 @@ function bindPrefEvents() {
   filterHintBarCheckboxBind?.addEventListener("change", () => {
     (setPref as any)("showFilterHintBar", filterHintBarCheckboxBind.checked);
   });
+  bindResultTypePriorityEvents(doc);
   const resetButton = doc.querySelector(
     `#zotero-prefpane-${config.addonRef}-reset-defaults`,
   ) as HTMLButtonElement | null;
@@ -277,6 +286,7 @@ function bindPrefEvents() {
     setPref("modifierShiftEnterAction", "reveal");
     setPref("modifierAltEnterAction", "reveal");
     setPref("resultsLimit", 20);
+    setPref("resultTypePriorities", "");
     (setPref as any)("windowHeight", 400);
     (setPref as any)("windowWidth", 560);
     (setPref as any)("searchAnnotations", true);
@@ -299,6 +309,44 @@ function clampWindowHeight(value: number): number {
 function clampWindowWidth(value: number): number {
   if (Number.isNaN(value) || value <= 0) return 560;
   return Math.min(1200, Math.max(300, value));
+}
+
+function getResultTypePrioritySelect(
+  doc: Document,
+  type: RankableResultType,
+): HTMLSelectElement | null {
+  return doc.querySelector(
+    `#zotero-prefpane-${config.addonRef}-type-priority-${type}`,
+  ) as HTMLSelectElement | null;
+}
+
+function syncResultTypePriorityUI(doc: Document) {
+  const priorities = parseResultTypePriorities(getPref("resultTypePriorities"));
+  for (const type of RANKABLE_RESULT_TYPES) {
+    const select = getResultTypePrioritySelect(doc, type);
+    if (select) {
+      select.value = String(priorities[type] ?? "");
+    }
+  }
+}
+
+function bindResultTypePriorityEvents(doc: Document) {
+  for (const type of RANKABLE_RESULT_TYPES) {
+    getResultTypePrioritySelect(doc, type)?.addEventListener("change", () => {
+      // The serializer drops "" (not prioritized) and any invalid rank.
+      const priorities: ResultTypePriorities = {};
+      for (const other of RANKABLE_RESULT_TYPES) {
+        const value = getResultTypePrioritySelect(doc, other)?.value;
+        if (value) {
+          priorities[other] = Number(value);
+        }
+      }
+      setPref(
+        "resultTypePriorities",
+        serializeResultTypePriorities(priorities),
+      );
+    });
+  }
 }
 
 function getConfiguredShortcuts() {

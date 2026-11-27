@@ -100,12 +100,29 @@ export function getItemNoteSnippetSafe(
   }
 }
 
-export type AttachmentResultType = "item" | "pdf" | "epub" | "snapshot";
+export type AttachmentResultType =
+  "item" | "pdf" | "epub" | "snapshot" | "link";
+
+/**
+ * True for "Link to URI" attachments: a pointer to a web page, with no
+ * locally stored content.
+ */
+export function isLinkedUrlAttachment(item: Zotero.Item): boolean {
+  if (!item.isAttachment()) {
+    return false;
+  }
+  return (
+    (item as any).attachmentLinkMode === Zotero.Attachments.LINK_MODE_LINKED_URL
+  );
+}
 
 export function getAttachmentResultType(
   item: Zotero.Item,
 ): AttachmentResultType {
   const candidate = item as any;
+  if (isLinkedUrlAttachment(item)) {
+    return "link";
+  }
   if (typeof candidate.isPDFAttachment === "function") {
     if (candidate.isPDFAttachment()) {
       return "pdf";

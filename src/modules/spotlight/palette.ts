@@ -3169,6 +3169,9 @@ export class PaletteUI {
     if (result.resultType === "snapshot") {
       return "Open the Snapshot in the Zotero reader.";
     }
+    if (result.resultType === "link") {
+      return "Open the linked web page in your browser.";
+    }
     return "Inspect the result here, then open it when you are ready.";
   }
 
@@ -3309,7 +3312,9 @@ export class PaletteUI {
                 ? { itemType: "attachmentEPUB", text: "↗" }
                 : result.resultType === "snapshot"
                   ? { itemType: "attachmentSnapshot", text: "↗" }
-                  : { itemType: "document", text: "↵" },
+                  : result.resultType === "link"
+                    ? { itemType: "attachmentWebLink", text: "↗" }
+                    : { itemType: "document", text: "↵" },
         hint: "Open the selected result",
         run: async () => {
           await this.finishQuickOpen(result, "default");
@@ -4172,6 +4177,9 @@ export class PaletteUI {
     if (type === "snapshot") {
       return "SNAPSHOT";
     }
+    if (type === "link") {
+      return "LINK";
+    }
     if (type === "annotation") {
       return "ANNO";
     }
@@ -4192,6 +4200,9 @@ export class PaletteUI {
     }
     if (type === "snapshot") {
       return "Open Snapshot";
+    }
+    if (type === "link") {
+      return "Open Link";
     }
     return "Open";
   }
@@ -4408,6 +4419,7 @@ export class PaletteUI {
       "note",
       "item",
       "annotation",
+      "link",
       "col",
     ];
     const yearValues = ["2024", "2023", "2020-2024", ">=2020", "<=2024"];

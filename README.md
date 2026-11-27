@@ -65,28 +65,30 @@ to another Spotlight action swaps the assignments.
 
 ### 1. Library-Wide Search and Navigation
 
-- Fuzzy-search items, notes, PDFs, EPUBs, snapshots, and annotations across personal and group libraries.
+- Fuzzy-search items, notes, PDFs, EPUBs, snapshots, web links, and annotations across personal and group libraries.
+- Find linked web pages by their title or URL. A link attached to a paper also matches the paper's metadata, shows a `LINK` badge, and opens in your browser.
 - Optionally restrict a normal search to the currently selected collection, including its subcollections.
 - Type `:col query` to enter a separate collection-only mode, search collection paths and group libraries, and switch the Zotero collection tree with `Enter`.
 - Use `>tabs` to search and switch across open Zotero tabs.
 - Start from a smart recent view containing recent searches, open readers, recently closed readers, and recently activated items.
 - Rank results using text relevance, active-library scope, recency, and usage frequency.
+- Optionally rank result types in Preferences so preferred types appear first.
 - Identify result types, group-library content, open tabs, reading-queue items, and the best attachment from compact badges.
 
 ### 2. Search Syntax
 
-| Syntax                                                        | Purpose                                     | Example                   |
-| ------------------------------------------------------------- | ------------------------------------------- | ------------------------- |
-| Plain text                                                    | Fuzzy-search item metadata                  | `attention transformer`   |
-| `:pdf`, `:epub`, `:snapshot`, `:note`, `:item`, `:annotation` | Restrict result type                        | `:pdf neural`             |
-| `#tag`                                                        | Require a Zotero tag                        | `#methods regression`     |
-| `y:`                                                          | Match an exact year, range, or comparison   | `y:2020-2024`, `y:>=2022` |
-| `@query`                                                      | Search annotations only                     | `@limitations`            |
-| `=phrase`                                                     | Search indexed PDF text for an exact phrase | `=attention mechanism`    |
-| `:queue`                                                      | Show papers in the synced Reading Queue     | `:queue :pdf y:>=2024`    |
-| `:col query`                                                  | Search collections and group libraries only | `:col machine learning`   |
-| `>query`                                                      | Search commands                             | `>copy citation`          |
-| `>tabs`                                                       | List open Zotero tabs                       | `>tabs`                   |
+| Syntax                                                                 | Purpose                                     | Example                   |
+| ---------------------------------------------------------------------- | ------------------------------------------- | ------------------------- |
+| Plain text                                                             | Fuzzy-search item metadata                  | `attention transformer`   |
+| `:pdf`, `:epub`, `:snapshot`, `:note`, `:item`, `:annotation`, `:link` | Restrict result type                        | `:pdf neural`             |
+| `#tag`                                                                 | Require a Zotero tag                        | `#methods regression`     |
+| `y:`                                                                   | Match an exact year, range, or comparison   | `y:2020-2024`, `y:>=2022` |
+| `@query`                                                               | Search annotations only                     | `@limitations`            |
+| `=phrase`                                                              | Search indexed PDF text for an exact phrase | `=attention mechanism`    |
+| `:queue`                                                               | Show papers in the synced Reading Queue     | `:queue :pdf y:>=2024`    |
+| `:col query`                                                           | Search collections and group libraries only | `:col machine learning`   |
+| `>query`                                                               | Search commands                             | `>copy citation`          |
+| `>tabs`                                                                | List open Zotero tabs                       | `>tabs`                   |
 
 Normal item filters can be combined. A clickable hint bar exposes the available
 syntax, while inline autocomplete completes colon and year filters. Collection
@@ -124,6 +126,16 @@ results.
 - Enable or disable annotation search, restoration of the previous query, and the filter hint bar.
 - Reset all Spotlight preferences to their defaults in one click.
 - Open the built-in shortcut guide with its configured shortcut to see Spotlight controls, frequent Zotero shortcuts, available command shortcuts, and shortcuts contributed by other plugins or the active window.
+
+### 7. Result Order
+
+- Off by default: with no priorities set, results keep their relevance order.
+- Each type can get a priority from 1 (highest) to 6. Higher-priority types are listed first; within the same priority, results are ordered by relevance.
+- Types without a priority come after all prioritized types, in relevance order.
+- Annotations are not ranked; they stay in their own section below the other results.
+- Type filters such as `:pdf` still narrow results as before.
+
+For example, with PDFs at 1 and Items at 2, a search lists matching PDFs first, then items, then notes, EPUBs, snapshots and links mixed by relevance.
 
 ## Contributing
 
