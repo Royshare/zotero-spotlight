@@ -72,6 +72,7 @@ to another Spotlight action swaps the assignments.
 - Use `>tabs` to search and switch across open Zotero tabs.
 - Start from a smart recent view containing recent searches, open readers, recently closed readers, and recently activated items.
 - Rank results using text relevance, active-library scope, recency, and usage frequency.
+- Optionally rank result types in Preferences so preferred types appear first.
 - Identify result types, group-library content, open tabs, reading-queue items, and the best attachment from compact badges.
 
 ### 2. Search Syntax
@@ -125,6 +126,16 @@ results.
 - Enable or disable annotation search, restoration of the previous query, and the filter hint bar.
 - Reset all Spotlight preferences to their defaults in one click.
 - Open the built-in shortcut guide with its configured shortcut to see Spotlight controls, frequent Zotero shortcuts, available command shortcuts, and shortcuts contributed by other plugins or the active window.
+
+### 7. Result Order
+
+- Off by default: with no priorities set, results keep their relevance order.
+- Each type can get a priority from 1 (highest) to 6. Higher-priority types are listed first; within the same priority, results are ordered by relevance.
+- Types without a priority come after all prioritized types, in relevance order.
+- Annotations are not ranked; they stay in their own section below the other results.
+- Type filters such as `:pdf` still narrow results as before.
+
+For example, with PDFs at 1 and Items at 2, a search lists matching PDFs first, then items, then notes, EPUBs, snapshots and links mixed by relevance.
 
 ## Contributing
 

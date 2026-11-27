@@ -10,6 +10,10 @@ import {
 } from "./itemMetadata";
 import { getPref } from "../../utils/prefs";
 import { NORMALIZED_READING_QUEUE_TAG } from "./readingQueue";
+import {
+  compareResultTypePriority,
+  parseResultTypePriorities,
+} from "./resultTypePriority";
 import { scoreSearchText } from "./textMatching";
 
 export type QuickOpenResult = ItemResult | AttachmentResult | AnnotationResult;
@@ -224,9 +228,17 @@ export class SearchService {
       }
       return r.kind === "annotation" ? 1 : 0;
     };
+    // Optional result type priorities (issue #60): ranked types come first,
+    // ties and unranked types keep their relevance order. Annotations are
+    // never ranked; they stay in their own section.
+    const typePriorities = parseResultTypePriorities(
+      getPref("resultTypePriorities"),
+    );
     const sorted = results.sort((a, b) => {
       const kindDiff = kindOrder(a) - kindOrder(b);
       if (kindDiff !== 0) return kindDiff;
+      const typeDiff = compareResultTypePriority(typePriorities, a, b);
+      if (typeDiff !== 0) return typeDiff;
       return b.score - a.score;
     });
 
